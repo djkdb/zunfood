@@ -16,6 +16,7 @@ const TINTS: Record<FoodCategory, string> = {
 
 interface RestaurantThumbProps {
   category: FoodCategory;
+  /** 실제 사진 URL. 없으면 카테고리 이모지로 대체한다 */
   thumbnail?: string;
   name: string;
   className?: string;
@@ -36,7 +37,11 @@ export function RestaurantThumb({
         src={thumbnail}
         alt={name}
         loading="lazy"
-        className={cn('object-cover', className)}
+        // 사진을 못 불러오면 이모지 배경이 비치도록 숨긴다
+        onError={(event) => {
+          event.currentTarget.style.display = 'none';
+        }}
+        className={cn('bg-ink-100 object-cover', className)}
       />
     );
   }

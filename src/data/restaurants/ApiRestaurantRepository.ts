@@ -5,12 +5,12 @@ import {
   type RestaurantRepository,
 } from './RestaurantRepository';
 
-/** 카카오 로컬 API 가 실제로 제공하는 정보 */
-const KAKAO_CAPABILITIES: RestaurantCapabilities = {
-  rating: false,
-  price: false,
-  openNow: false,
-  photo: false,
+/** 제공자별로 실제 내려주는 정보가 다르다 */
+const CAPABILITIES: Record<string, RestaurantCapabilities> = {
+  // 카카오 로컬 API: 이름·카테고리·좌표·거리만
+  kakao: { rating: false, price: false, priceLevel: false, openNow: false, photo: false },
+  // 구글 Places(New): 평점·가격대·영업여부·사진까지 (금액은 등급으로만)
+  google: { rating: true, price: false, priceLevel: true, openNow: true, photo: true },
 };
 
 const ERROR_MESSAGE: Record<string, string> = {
@@ -27,12 +27,14 @@ const ERROR_MESSAGE: Record<string, string> = {
  * 어떤 제공자를 쓸지는 서버가 정하고, 여기서는 정규화된 결과만 받는다.
  */
 export class ApiRestaurantRepository implements RestaurantRepository {
-  readonly source = 'kakao' as const;
-  readonly capabilities = KAKAO_CAPABILITIES;
+  readonly source: string;
+  readonly capabilities: RestaurantCapabilities;
   private readonly base: string;
 
-  constructor(apiBase: string) {
+  constructor(apiBase: string, provider: string) {
     this.base = apiBase.replace(/\/$/, '');
+    this.source = provider;
+    this.capabilities = CAPABILITIES[provider] ?? CAPABILITIES.kakao;
   }
 
   async search(query: RestaurantQuery): Promise<Restaurant[]> {
@@ -66,12 +68,20 @@ export class ApiRestaurantRepository implements RestaurantRepository {
     const restaurants = body.restaurants ?? [];
     const { filters } = query;
 
-    // 서버가 좌표 반경으로 이미 걸러왔으니, 여기서는 사용자가 고른 음식 종류만 반영한다.
-    // 평점·가격 필터는 이 소스에 해당 데이터가 없으므로 적용하지 않는다.
+    // 서버가 좌표 반경으로 이미 걸러왔으니, 여기서는 사용자 조건만 반영한다.
+    // 데이터가 없는 항목(평점 0 / 등급 null)은 필터에서 제외 사유로 쓰지 않는다.
     return restaurants
       .filter((r) => !filters.excludedCategories.includes(r.category))
       .filter(
         (r) => filters.categories.length === 0 || filters.categories.includes(r.category),
+      )
+      .filter((r) => !this.capabilities.rating || r.rating === 0 || r.rating >= filters.minRating)
+      .filter((r) => !this.capabilities.openNow || !filters.openNowOnly || r.isOpen !== false)
+      .filter(
+        (r) =>
+          !filters.maxPriceLevel ||
+          r.priceLevel === null ||
+          r.priceLevel <= filters.maxPriceLevel,
       );
   }
 }

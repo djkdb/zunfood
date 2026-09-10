@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { handleApi } from '../server/api';
 import { handlePlaces } from '../server/places';
+import { fetchPhoto } from '../server/places-google';
 import type { Sql } from '../server/sql';
 
 export interface Env {
@@ -8,8 +9,10 @@ export interface Env {
   ASSETS: Fetcher;
   /** Neon 커넥션 문자열. 대시보드에 Secret 으로 넣는다 (VITE_ 접두사 금지) */
   DATABASE_URL: string;
-  /** 카카오 REST API 키. 없으면 앱은 목업 식당 데이터로 동작한다 */
+  /** 카카오 REST API 키 (이름·카테고리·거리만) */
   KAKAO_REST_API_KEY?: string;
+  /** 구글 Places API 키 (평점·가격대·영업여부·사진). 있으면 이쪽을 우선 쓴다 */
+  GOOGLE_PLACES_API_KEY?: string;
 }
 
 /**
@@ -25,14 +28,35 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
-    // 식당 검색 프록시 — 카카오 키를 브라우저에 내보내지 않기 위해 서버에서만 부른다
+    // 식당 사진 프록시 — 구글 키를 노출하지 않고 이미지를 중계한다.
+    // 사진은 결과 화면에서 한 장만 요청하고, 오래 캐시해서 이미지 과금을 줄인다.
+    if (url.pathname === '/api/places/photo') {
+      if (!env.GOOGLE_PLACES_API_KEY) return new Response(null, { status: 404 });
+
+      const cache = caches.default;
+      const cached = await cache.match(request);
+      if (cached) return cached;
+
+      const response = await fetchPhoto(
+        url.searchParams.get('name') ?? '',
+        Number(url.searchParams.get('w')) || 480,
+        env.GOOGLE_PLACES_API_KEY,
+      );
+      if (response.ok) ctx.waitUntil(cache.put(request, response.clone()));
+      return response;
+    }
+
+    // 식당 검색 프록시 — API 키를 브라우저에 내보내지 않기 위해 서버에서만 부른다
     if (url.pathname === '/api/places') {
       const cache = caches.default;
       const cached = await cache.match(request);
       if (cached) return cached;
 
-      const response = await handlePlaces(request, env.KAKAO_REST_API_KEY ?? '');
-      // 같은 좌표를 다시 검색해도 카카오 할당량을 다시 쓰지 않게 잠깐 저장해둔다
+      const response = await handlePlaces(request, {
+        kakao: env.KAKAO_REST_API_KEY,
+        google: env.GOOGLE_PLACES_API_KEY,
+      });
+      // 같은 좌표를 다시 검색해도 외부 API 할당량을 다시 쓰지 않게 잠깐 저장해둔다
       if (response.ok && request.method === 'GET') {
         ctx.waitUntil(cache.put(request, response.clone()));
       }

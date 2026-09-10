@@ -4,7 +4,7 @@ import { TIMING } from '@/config/app';
 import { Countdown } from '@/components/ui/Countdown';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { RestaurantThumb } from '@/components/RestaurantThumb';
-import { formatRating, formatWon } from '@/lib/format';
+import { formatPriceLevel, formatRating, formatWon } from '@/lib/format';
 import { walkingMinutes } from '@/lib/geo';
 import { cn } from '@/lib/cn';
 import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
@@ -231,9 +231,11 @@ function Fighter({
           {restaurant.rating > 0 && ` · ⭐ ${formatRating(restaurant.rating)}`}
           {` · 걸어서 ${walkingMinutes(restaurant.distance)}분`}
         </span>
-        {restaurant.priceRange > 0 && (
+        {(restaurant.priceRange > 0 || restaurant.priceLevel) && (
           <span className="mt-0.5 block text-sm font-bold text-accent-300">
-            {formatWon(restaurant.priceRange)}
+            {restaurant.priceRange > 0
+              ? formatWon(restaurant.priceRange)
+              : formatPriceLevel(restaurant.priceLevel as number)}
           </span>
         )}
       </span>

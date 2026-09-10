@@ -56,8 +56,9 @@ npm run dev          # http://localhost:5173
 | --- | --- | --- | --- |
 | `VITE_API_BASE` | 클라이언트 | (없음) | 방 API 주소. 배포에서는 `/api`. 비우면 로컬 모드 |
 | `DATABASE_URL` | **서버 전용** | (없음) | Neon 커넥션 문자열. `VITE_` 를 붙이면 안 됨 |
-| `VITE_PLACES_PROVIDER` | 클라이언트 | `mock` | `mock` \| `kakao` |
+| `VITE_PLACES_PROVIDER` | 클라이언트 | `mock` | `mock` \| `kakao` \| `google` |
 | `KAKAO_REST_API_KEY` | **서버 전용** | (없음) | 카카오 REST 키. `VITE_` 를 붙이면 안 됨 |
+| `GOOGLE_PLACES_API_KEY` | **서버 전용** | (없음) | 구글 Places 키. 있으면 카카오보다 우선 |
 | `VITE_AI_JUDGE_PROVIDER` | 클라이언트 | `mock` | `mock` \| `http` |
 | `VITE_AI_JUDGE_ENDPOINT` | 클라이언트 | (없음) | 판결 위임 서버 URL (LLM 키는 **서버에**) |
 
@@ -142,7 +143,7 @@ npm run dev:worker               # 빌드 후 wrangler dev
   (Supabase 처럼 anon key 를 공개하고 RLS 로 막는 구조가 아니라, 애초에 DB 에 직접 접근하지 않습니다.)
 * `VITE_` 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
 * 카카오 REST 키(`VITE_KAKAO_REST_API_KEY`)는 그대로 노출됩니다.
-  카카오 키는 `/api/places` 프록시를 통해 서버에만 두므로 브라우저에 노출되지 않습니다.
+  식당 API 키는 `/api/places` 프록시를 통해 서버에만 두므로 브라우저에 노출되지 않습니다.
 
 ### 저장소에 들어 있는 배포 설정
 
@@ -194,7 +195,7 @@ src/
 ├─ components/ui/   디자인 시스템 프리미티브
 └─ screens/         화면 (홈/솔로/생성/참가/대기실/게임선택/플레이/결과)
 
-server/             방 API + 카카오 프록시 — 브라우저에서 import 하지 않는다
+server/             방 API + 식당 API 프록시(카카오/구글) — 브라우저에서 import 하지 않는다
 worker/             Cloudflare Worker 진입점 (/api 라우팅 + SPA 서빙)
 neon/schema.sql     Neon(Postgres) 스키마
 ```
@@ -291,23 +292,50 @@ interface RestaurantRepository {
 * AI 판사도 **주어진 후보 안에서만** 고릅니다. 외부 서버가 후보에 없는 식당을 반환하면
   그 응답은 버리고 로컬 판결로 대체합니다 (`HttpJudgeProvider`).
 
-#### 실제 데이터 붙이기 (카카오)
+#### 실제 데이터 붙이기
+
+제공자에 따라 받을 수 있는 정보가 다릅니다.
+
+| | 이름·카테고리·거리 | 평점 | 가격 | 영업여부 | 사진 |
+| --- | --- | --- | --- | --- | --- |
+| `mock` | ✓ | ✓ | ✓ (원) | ✓ | — |
+| `kakao` | ✓ | — | — | — | — |
+| `google` | ✓ | ✓ | ✓ (등급) | ✓ | ✓ |
+
+**구글 (권장 — 평점·가격대·사진까지)**
 
 ```
-VITE_PLACES_PROVIDER = kakao      ← 빌드 변수
-VITE_API_BASE        = /api       ← 빌드 변수
-KAKAO_REST_API_KEY   = ...        ← 런타임 Secret (VITE_ 금지)
+VITE_PLACES_PROVIDER  = google    ← 빌드 변수
+VITE_API_BASE         = /api      ← 빌드 변수
+GOOGLE_PLACES_API_KEY = ...       ← 런타임 Secret (VITE_ 금지)
 ```
 
-[카카오 개발자센터](https://developers.kakao.com)에서 애플리케이션을 만들고
-**REST API 키**를 발급받아 Worker 의 Secret 으로 넣습니다.
-브라우저는 카카오를 직접 부르지 않습니다 — `/api/places` 를 거치므로 키가 노출되지 않습니다.
+GCP 에서 **Places API (New)** 를 켜고 키를 발급받아 Worker Secret 으로 넣습니다.
 
-**카카오가 주지 않는 것**: 평점, 가격, 영업시간, 사진.
-없는 값을 지어내지 않고 `rating: 0` / `priceRange: 0` / `isOpen: null` 로 두며,
-`capabilities` 를 보고 화면이 해당 항목을 **감춥니다**
-(예산 필터·평점 필터·영업중 토글이 사라지고, 결과 화면 통계가 "걸어서 / 거리" 로 바뀝니다).
-평점·사진·영업시간은 결과의 **"지도에서 보기"** 로 카카오맵 상세 페이지에서 확인합니다.
+* 검색 1건 = 게임 1판입니다. 평점을 포함한 요청은 Enterprise 등급으로 과금되며
+  **월 1,000건 무료**입니다. `/api/places` 응답을 5분 캐시하므로 같은 자리에서
+  연달아 하는 판은 추가 호출이 없습니다.
+* 가격은 금액이 아니라 **등급(₩~₩₩₩₩)** 으로만 옵니다. 등급을 원으로 환산하는 건
+  값을 지어내는 것이라, `priceRange`(원)와 `priceLevel`(등급)을 분리해 두고
+  등급이 있을 때는 ₩ 표기로 보여줍니다.
+* 사진은 **결과 화면에서 한 장만** 요청합니다. 목록 카드까지 띄우면 판당 이미지
+  요청이 10배가 됩니다. `/api/places/photo` 프록시가 키를 감추고 7일 캐시합니다.
+
+**카카오 (무료, 대신 이름·거리만)**
+
+```
+VITE_PLACES_PROVIDER = kakao
+VITE_API_BASE        = /api
+KAKAO_REST_API_KEY   = ...        ← 런타임 Secret
+```
+
+두 키가 다 있으면 서버는 구글을 씁니다. `VITE_PLACES_PROVIDER` 를 서버에 넣은 키와
+맞춰주세요 (화면이 어떤 항목을 보여줄지 이 값으로 정합니다).
+
+**없는 값은 감춥니다.** 어떤 제공자든 모르는 항목은 `rating: 0` / `priceLevel: null` /
+`isOpen: null` 로 두고, `capabilities` 를 보고 화면이 해당 UI 를 **아예 없앱니다** —
+카카오를 쓰면 가격·평점·영업중 필터가 사라지고 결과 통계가 "걸어서 / 거리" 로 바뀝니다.
+`⭐ 0.0` 이나 근거 없는 "영업종료" 는 나오지 않습니다.
 
 #### 네이버는 왜 안 쓰나
 
@@ -387,15 +415,16 @@ dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 
 ## 아직 목업인 부분
 
 * **식당 데이터** — 기본값은 `fixtures.ts` 의 가상 가게 31곳입니다.
-  `VITE_PLACES_PROVIDER=kakao` 로 실제 카카오 데이터를 쓸 수 있습니다(평점·가격·영업시간 제외).
+  `VITE_PLACES_PROVIDER` 를 `google`(평점·가격대·사진 포함) 또는 `kakao` 로 바꾸면
+  실제 데이터를 씁니다.
 * **장소/학교 검색** — 내장 대학 좌표 픽스처(근사값). 실제 지오코딩 API 로 교체 가능.
 * **AI 판사** — 결정론적 로컬 판결. `VITE_AI_JUDGE_ENDPOINT` 로 실제 LLM 서버 연결 가능.
 * **지도** — 외부 지도 링크로 이동. 인앱 지도는 아직 없습니다.
 
 ## 다음 단계 추천
 
-1. **평점·가격 보강** — 카카오 로컬 API 에는 없습니다. 필요하면 별도 소스를 붙이거나,
-   사용자가 직접 남기는 평가를 쌓는 방향이 현실적입니다.
+1. **메뉴·1인 금액** — 구글도 원 단위 금액과 메뉴는 주지 않습니다(등급만).
+   필요하면 사용자가 직접 남기는 기록을 쌓는 방향이 현실적입니다.
 2. **레이트 리밋** — `/api` 에 방 코드/IP 기준 제한을 걸어 무차별 코드 추측을 막기.
 3. **투표 비밀성 서버 강제** — 지금도 서버가 공개 상태만 내려주므로 화면에는 새지 않습니다.
    더 엄격히 하려면 집계를 서버로 옮기면 됩니다.

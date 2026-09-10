@@ -32,6 +32,9 @@ export const CATEGORY_EMOJI: Record<FoodCategory, string> = FOOD_CATEGORIES.redu
   {} as Record<FoodCategory, string>,
 );
 
+/** 가격대 등급 — 1(₩) ~ 4(₩₩₩₩) */
+export type PriceLevel = 1 | 2 | 3 | 4;
+
 export interface MenuItem {
   name: string;
   price: number;
@@ -50,13 +53,27 @@ export interface Restaurant {
   address: string;
   /** 0~5. 0 이면 "데이터 없음" (모든 제공자가 평점을 주지는 않는다) */
   rating: number;
+  /** 평점을 매긴 사람 수. 0 이면 "데이터 없음" */
+  ratingCount?: number;
   /** 1인 기준 평균 가격(원). 0 이면 "데이터 없음" */
   priceRange: number;
+  /**
+   * 가격대 1~4 (₩ ~ ₩₩₩₩). null 이면 "데이터 없음".
+   *
+   * 구글은 금액이 아니라 등급만 준다. 등급을 원 단위로 환산하면 그것도 지어내는
+   * 것이므로, 금액(priceRange)과 등급(priceLevel)을 따로 둔다.
+   */
+  priceLevel: PriceLevel | null;
   /** true/false 는 확인된 값, null 은 "알 수 없음" — 모른다고 영업종료로 표시하지 않는다 */
   isOpen: boolean | null;
   /** 기준 좌표로부터의 거리(m). 데이터 계층에서 계산해 채운다. */
   distance: number;
   thumbnail?: string;
+  /**
+   * 제공자 사진 참조. 실제 이미지는 비용이 들 수 있어서, 결과 화면처럼
+   * 꼭 필요한 곳에서만 요청한다 (목록/카드에서는 요청하지 않는다).
+   */
+  photoRef?: string;
   menu: MenuItem[];
   tags: string[];
   /** 외부 지도 링크 (없으면 좌표 기반으로 생성) */
@@ -86,6 +103,8 @@ export interface RestaurantFilters {
   /** 제외할 카테고리 (먹기 싫은 음식) */
   excludedCategories: FoodCategory[];
   minRating: number;
+  /** 가격대 상한 (1~4). 0 이면 상관없음 — 금액을 모르는 제공자에서 쓴다 */
+  maxPriceLevel: number;
   openNowOnly: boolean;
 }
 
@@ -101,5 +120,6 @@ export const DEFAULT_FILTERS: RestaurantFilters = {
   categories: [],
   excludedCategories: [],
   minRating: 0,
+  maxPriceLevel: 0,
   openNowOnly: false,
 };

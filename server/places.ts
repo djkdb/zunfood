@@ -1,3 +1,4 @@
+import { GooglePlacesError, searchGoogle } from './places-google.ts';
 import type { FoodCategory, Restaurant } from '../src/types/restaurant';
 
 /**
@@ -6,6 +7,7 @@ import type { FoodCategory, Restaurant } from '../src/types/restaurant';
  * 키는 서버에만 둔다. 브라우저가 dapi.kakao.com 을 직접 부르면 REST 키가 그대로 노출된다.
  *
  * ⚠️ 카카오 로컬 API 가 주지 않는 것: 평점, 가격, 영업시간, 사진.
+ * (평점·가격대·사진이 필요하면 구글 키를 넣으면 된다 — places-google.ts)
  * 없는 값을 지어내지 않고 "모름"(rating 0 / priceRange 0 / isOpen null)으로 내려보낸다.
  * 화면은 capabilities 를 보고 해당 항목을 감춘다.
  */
@@ -37,8 +39,19 @@ export class PlacesError extends Error {
   }
 }
 
-/** GET /api/places?lat=&lng=&radius=&limit= */
-export async function handlePlaces(request: Request, apiKey: string): Promise<Response> {
+export interface PlacesKeys {
+  kakao?: string;
+  google?: string;
+}
+
+/**
+ * GET /api/places?lat=&lng=&radius=&limit=
+ *
+ * 구글 키가 있으면 구글(평점·가격대·영업여부·사진), 없으면 카카오를 쓴다.
+ */
+export async function handlePlaces(request: Request, keys: PlacesKeys | string): Promise<Response> {
+  // 문자열로 오면 카카오 키로 간주한다 (이전 호출부 호환)
+  const resolved: PlacesKeys = typeof keys === 'string' ? { kakao: keys } : keys;
   const params = new URL(request.url).searchParams;
   const lat = Number(params.get('lat'));
   const lng = Number(params.get('lng'));
@@ -48,20 +61,25 @@ export async function handlePlaces(request: Request, apiKey: string): Promise<Re
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return json({ error: 'bad_request', message: '좌표가 올바르지 않습니다.' }, 400);
   }
-  if (!apiKey) {
+  const provider = resolved.google ? 'google' : resolved.kakao ? 'kakao' : null;
+  if (!provider) {
     return json({ error: 'auth', message: '식당 데이터 API 키가 설정되지 않았습니다.' }, 500);
   }
 
   try {
-    const restaurants = await searchKakao({ lat, lng, radius, limit, apiKey });
+    const restaurants =
+      provider === 'google'
+        ? await searchGoogle({ lat, lng, radius, limit, apiKey: resolved.google as string })
+        : await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao as string });
+
     return json(
-      { provider: 'kakao', restaurants },
+      { provider, restaurants },
       200,
       // 같은 지점을 다시 검색해도 카카오 할당량을 다시 쓰지 않도록 잠깐 캐시한다
       { 'cache-control': 'public, max-age=300' },
     );
   } catch (error) {
-    if (error instanceof PlacesError) {
+    if (error instanceof PlacesError || error instanceof GooglePlacesError) {
       return json({ error: error.code, message: error.message }, error.status);
     }
     return json({ error: 'network', message: '식당 정보를 불러오지 못했어요.' }, 502);
@@ -141,6 +159,7 @@ export function toRestaurant(doc: KakaoPlace): Restaurant {
     // 카카오 로컬 API 는 아래 셋을 제공하지 않는다. 지어내지 않고 "모름"으로 둔다.
     rating: 0,
     priceRange: 0,
+    priceLevel: null,
     isOpen: null,
     distance: doc.distance ? Number(doc.distance) : 0,
     menu: [],

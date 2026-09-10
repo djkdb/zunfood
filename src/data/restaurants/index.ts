@@ -11,9 +11,10 @@ let instance: RestaurantRepository | null = null;
  */
 export function getRestaurantRepository(): RestaurantRepository {
   if (instance) return instance;
+  const remote = ENV.placesProvider === 'kakao' || ENV.placesProvider === 'google';
   instance =
-    ENV.placesProvider === 'kakao' && ENV.apiBase
-      ? new ApiRestaurantRepository(ENV.apiBase)
+    remote && ENV.apiBase
+      ? new ApiRestaurantRepository(ENV.apiBase, ENV.placesProvider)
       : new MockRestaurantRepository();
   return instance;
 }

@@ -1,5 +1,5 @@
 import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
-import { formatDistance, formatRating, formatWon } from '@/lib/format';
+import { formatDistance, formatPriceLevel, formatRating, formatWon } from '@/lib/format';
 import { walkingMinutes } from '@/lib/geo';
 import { cn } from '@/lib/cn';
 import { RestaurantThumb } from './RestaurantThumb';
@@ -59,7 +59,10 @@ export function RestaurantCard({
           {restaurant.rating > 0 && (
             <>
               <Dot surface={surface} />
-              <span>⭐ {formatRating(restaurant.rating)}</span>
+              <span>
+                ⭐ {formatRating(restaurant.rating)}
+                {restaurant.ratingCount ? ` (${restaurant.ratingCount})` : ''}
+              </span>
             </>
           )}
           <Dot surface={surface} />
@@ -68,14 +71,16 @@ export function RestaurantCard({
       </div>
 
       <div className="shrink-0 text-right">
-        {restaurant.priceRange > 0 && (
+        {(restaurant.priceRange > 0 || restaurant.priceLevel) && (
           <p
             className={cn(
               'text-[14px] font-bold',
               surface === 'light' ? 'text-ink-800' : 'text-white',
             )}
           >
-            {formatWon(restaurant.priceRange)}
+            {restaurant.priceRange > 0
+              ? formatWon(restaurant.priceRange)
+              : formatPriceLevel(restaurant.priceLevel as number)}
           </p>
         )}
         <p

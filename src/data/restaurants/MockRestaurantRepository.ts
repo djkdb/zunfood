@@ -20,6 +20,7 @@ export class MockRestaurantRepository implements RestaurantRepository {
   readonly capabilities: RestaurantCapabilities = {
     rating: true,
     price: true,
+    priceLevel: false,
     openNow: true,
     photo: false,
   };
@@ -84,6 +85,7 @@ function placeTemplate(
     address: '데모 데이터 · 실제 주소 아님',
     rating: template.rating,
     priceRange: template.priceRange,
+    priceLevel: null,
     isOpen: normalizedHour >= open && normalizedHour < close,
     distance: distanceInMeters(query.location, { latitude, longitude }),
     menu: template.menu,

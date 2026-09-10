@@ -5,7 +5,14 @@ import { Confetti } from '@/components/ui/Confetti';
 import { LoadingDots } from '@/components/ui/ProgressBar';
 import { RestaurantThumb } from '@/components/RestaurantThumb';
 import { Sheet } from '@/components/ui/Sheet';
-import { formatCompactWon, formatDistance, formatWon, formatRating } from '@/lib/format';
+import {
+  formatCompactWon,
+  formatDistance,
+  formatPriceLevel,
+  formatWon,
+  formatRating,
+} from '@/lib/format';
+import { photoUrl } from '@/lib/photo';
 import { walkingMinutes } from '@/lib/geo';
 import { directionsUrl, mapUrl } from '@/lib/map';
 import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
@@ -52,7 +59,9 @@ export function ResultView({
     { value: `${walkingMinutes(restaurant.distance)}분`, label: '걸어서' },
     ...(restaurant.priceRange > 0
       ? [{ value: formatCompactWon(restaurant.priceRange), label: '1인 평균' }]
-      : [{ value: formatDistance(restaurant.distance), label: '거리' }]),
+      : restaurant.priceLevel
+        ? [{ value: formatPriceLevel(restaurant.priceLevel), label: '가격대' }]
+        : [{ value: formatDistance(restaurant.distance), label: '거리' }]),
   ];
 
   useEffect(() => {
@@ -94,9 +103,10 @@ export function ResultView({
                 transition={{ type: 'spring', stiffness: 260, damping: 18 }}
                 className="mt-5"
               >
+                {/* 사진은 이 화면에서만 요청한다 (목록에서는 호출하지 않는다) */}
                 <RestaurantThumb
                   category={restaurant.category}
-                  thumbnail={restaurant.thumbnail}
+                  thumbnail={photoUrl(restaurant, 480)}
                   name={restaurant.name}
                   className="h-[132px] w-[132px] rounded-3xl"
                   emojiClassName="text-[62px]"

@@ -9,7 +9,10 @@ import type { Restaurant, RestaurantQuery } from '@/types/restaurant';
  */
 export interface RestaurantCapabilities {
   rating: boolean;
+  /** 1인 금액(원)을 아는가 */
   price: boolean;
+  /** 가격대 등급(₩~₩₩₩₩)을 아는가 */
+  priceLevel: boolean;
   openNow: boolean;
   photo: boolean;
 }

@@ -65,6 +65,22 @@ export function ConditionFields({
         />
       </Field>
 
+      {can.priceLevel && (
+        <Field label="가격대">
+          <Segmented
+            label="가격대"
+            value={filters.maxPriceLevel}
+            onChange={(maxPriceLevel) => onFiltersChange({ ...filters, maxPriceLevel })}
+            options={[
+              { value: 0, label: '전체' },
+              { value: 1, label: '₩' },
+              { value: 2, label: '₩₩' },
+              { value: 3, label: '₩₩₩' },
+            ]}
+          />
+        </Field>
+      )}
+
       {can.price && (
         <Field label="1인 예산">
           <Segmented

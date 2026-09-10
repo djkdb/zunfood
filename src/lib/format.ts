@@ -15,6 +15,11 @@ export function formatRating(rating: number): string {
   return rating.toFixed(1);
 }
 
+/** 가격대 등급 표기 — 2 → "₩₩" (금액을 모르는 제공자용) */
+export function formatPriceLevel(level: number): string {
+  return '₩'.repeat(Math.min(4, Math.max(1, level)));
+}
+
 /** 좁은 자리에 넣는 금액 표기 — 12,000 → "1.2만" */
 export function formatCompactWon(value: number): string {
   if (value >= 10_000) {
