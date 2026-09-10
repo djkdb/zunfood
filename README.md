@@ -71,61 +71,67 @@ npm run dev          # http://localhost:5173
 3. 서버 시크릿과 클라이언트 API 주소 설정
    * 로컬: `.dev.vars` 에 `DATABASE_URL=...`, `.env` 에 `VITE_API_BASE=/api`
    * 배포: Cloudflare Secret 에 `DATABASE_URL`, 환경변수에 `VITE_API_BASE=/api`
-4. 로컬에서 서버까지 돌리려면 `npx wrangler pages dev dist` (Vite dev 서버에는 /api 가 없습니다)
+4. 로컬에서 서버까지 돌리려면 `npm run dev:worker` (Vite dev 서버에는 `/api` 가 없습니다)
 
 **Supabase 와의 차이**: Neon 은 실시간 구독이 없고, 커넥션 문자열은 브라우저에 둘 수 없습니다.
-그래서 브라우저 → **Cloudflare Pages Functions(`/api`)** → Neon 구조이고,
+그래서 브라우저 → **Cloudflare Worker(`/api`)** → Neon 구조이고,
 동기화는 구독 대신 **폴링**으로 합니다(아래 참고). 대신 DB 자격증명이 클라이언트에
 전혀 노출되지 않고, 방장 전용 동작을 서버에서 검증합니다.
 
 
 ---
 
-## Cloudflare Pages 배포
+## Cloudflare Workers 배포
 
 > ⚠️ **가장 중요**: `DATABASE_URL` 과 `VITE_API_BASE` 없이 배포하면 *로컬 모드*로 동작합니다.
 > 같은 기기의 탭끼리만 동기화되므로, **친구가 각자 휴대폰으로 들어오는 실제 사용은 되지 않습니다.**
 
 ### 1) 대시보드에서 Git 연동 (권장)
 
-Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Workers** → **Import a repository**
 
 | 항목 | 값 |
 | --- | --- |
-| Framework preset | `Vite` (또는 None) |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
+| Deploy command | `npx wrangler deploy` |
 | Root directory | `/` |
 
-**Environment variables** 에 아래를 추가합니다 (Production / Preview 각각).
+환경변수는 **두 군데에 나눠서** 넣어야 합니다. 여기서 자주 틀립니다.
+
+**① 빌드 변수** (Settings → Build → *Variables and Secrets*)
+빌드할 때 번들에 박히는 값입니다.
 
 ```
 VITE_API_BASE = /api
 NODE_VERSION  = 22
 ```
 
-그리고 같은 화면에서 `DATABASE_URL` 을 **Encrypt(Secret)** 로 추가합니다.
-`VITE_` 를 붙이면 브라우저에 노출되니 절대 붙이지 마세요.
+**② 런타임 시크릿** (Worker 의 Settings → *Variables and Secrets*)
+배포된 Worker 가 실행 중에 읽는 값입니다. **Secret(암호화)** 로 추가하세요.
 
 ```
-DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require   ← Secret
+DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
 ```
 
-`Save and Deploy` 를 누르면 빌드 후 `https://<project>.pages.dev` 로 올라갑니다.
-이후 브랜치에 푸시할 때마다 자동 배포되고, PR 마다 미리보기 URL이 생깁니다.
+`DATABASE_URL` 에 `VITE_` 를 붙이면 브라우저 번들에 DB 비밀번호가 박힙니다. 절대 붙이지 마세요.
+반대로 `VITE_API_BASE` 를 런타임 변수에만 넣으면 빌드가 못 보고 로컬 모드로 배포됩니다.
+
+저장하면 빌드 후 `https://<worker>.<계정>.workers.dev` 로 올라갑니다.
+이후 브랜치에 푸시할 때마다 자동 배포됩니다.
 
 ### 2) CLI 로 배포
 
 ```bash
 npx wrangler login
-npm run deploy          # 빌드 후 wrangler pages deploy
+npx wrangler secret put DATABASE_URL   # 런타임 시크릿 등록 (최초 1회)
+npm run deploy                          # 빌드 후 wrangler deploy
 ```
 
-`wrangler.toml` 에 프로젝트 이름과 출력 폴더가 들어 있습니다.
-로컬에서 Pages 환경 그대로 확인하려면:
+로컬에서 Worker 까지 그대로 띄워보려면:
 
 ```bash
-npm run deploy:preview  # wrangler pages dev dist
+cp .dev.vars.example .dev.vars   # DATABASE_URL 채우기
+npm run dev:worker               # 빌드 후 wrangler dev
 ```
 
 ### 환경변수 주의점
@@ -136,17 +142,21 @@ npm run deploy:preview  # wrangler pages dev dist
   (Supabase 처럼 anon key 를 공개하고 RLS 로 막는 구조가 아니라, 애초에 DB 에 직접 접근하지 않습니다.)
 * `VITE_` 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
 * 카카오 REST 키(`VITE_KAKAO_REST_API_KEY`)는 그대로 노출됩니다.
-  실제 운영에서는 Pages Functions(`functions/api/places.ts`)로 프록시를 두고
-  키는 Cloudflare Secret 에 넣은 뒤, `RestaurantRepository` 구현만 그 URL을 보게 바꾸세요.
+  실제 운영에서는 Worker 안에 `/api/places` 프록시를 두고 키는 Cloudflare Secret 에 넣은 뒤,
+  `RestaurantRepository` 구현만 그 URL 을 보게 바꾸세요.
 
 ### 저장소에 들어 있는 배포 설정
 
 | 파일 | 역할 |
 | --- | --- |
-| `public/_redirects` | SPA 폴백. `/join/A7K3` 처럼 새로고침해도 200으로 앱이 뜬다 |
+| `worker/index.ts` | `/api/*` 는 방 API 로, 나머지는 SPA 로 보내는 Worker 진입점 |
 | `public/_headers` | 해시 자산 영구 캐시, `index.html` 무캐시, 보안 헤더, `geolocation=(self)` |
-| `wrangler.toml` | CLI 배포용 프로젝트 설정 |
+| `wrangler.toml` | Worker 이름·진입점·정적 자산(`dist`) 설정 |
 | `.nvmrc` | Node 22 고정 |
+
+SPA 폴백은 `_redirects` 가 아니라 Worker 가 처리합니다.
+`/index.html` 을 직접 요청하면 자산 계층이 `/` 로 리다이렉트해서 **초대 링크의 방 코드가 사라지기 때문에**,
+루트 문서를 받아 원래 주소에 200 으로 실어 보냅니다.
 
 `Permissions-Policy` 에서 **geolocation 은 반드시 허용**해야 합니다 —
 막으면 "현재 위치 사용" 이 조용히 실패합니다.
@@ -159,8 +169,8 @@ npm run deploy:preview  # wrangler pages dev dist
 
 ### 배포 후 확인
 
-1. `https://<project>.pages.dev` 접속 → 홈이 Pretendard 로 보이는지
-2. `https://<project>.pages.dev/api/health` 가 `{"ok":true}` 인지 (DB 연결 확인)
+1. `https://<worker>.workers.dev` 접속 → 홈이 Pretendard 로 보이는지
+2. `https://<worker>.workers.dev/api/health` 가 `{"ok":true}` 인지 (DB 연결 확인)
 3. 방을 만들고 **다른 기기**에서 초대 링크로 입장 → 참가자 목록이 늘어나는지
    (안 되면 `VITE_API_BASE` 또는 `DATABASE_URL` 미설정)
 4. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
@@ -186,7 +196,7 @@ src/
 └─ screens/         화면 (홈/솔로/생성/참가/대기실/게임선택/플레이/결과)
 
 server/             방 API (DB 접근·권한 검증) — 브라우저에서 import 하지 않는다
-functions/api/      Cloudflare Pages Functions 진입점 (server/api.ts 를 Neon 에 연결)
+worker/             Cloudflare Worker 진입점 (/api 라우팅 + SPA 서빙)
 neon/schema.sql     Neon(Postgres) 스키마
 ```
 
@@ -236,7 +246,7 @@ neon/schema.sql     Neon(Postgres) 스키마
   액션 폴링은 **게임 중에만**, **방장만** 합니다.
 
 실측: 대기실에 4명이 있을 때 **초당 약 2건**, 10분 세션이면 약 1,200건입니다.
-Cloudflare Pages Functions 무료 한도(하루 10만 요청) 기준으로 하루 수십 세션 규모입니다.
+Cloudflare Workers 무료 한도(하루 10만 요청) 기준으로 하루 수십 세션 규모입니다.
 
 투표 → 화면 반영까지는 최악 약 1.6초(액션 폴링 0.6초 + 스냅샷 1초)입니다.
 카운트다운은 서버 시각 기준으로 계산하므로 폴링 지연과 무관하게 모두 같은 숫자를 봅니다.
@@ -375,4 +385,4 @@ dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 
 ## 기술 스택
 
 React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · Zustand · Framer Motion ·
-Neon(Postgres) · Cloudflare Pages Functions · Pretendard · qrcode · canvas-confetti
+Neon(Postgres) · Cloudflare Workers · Pretendard · qrcode · canvas-confetti

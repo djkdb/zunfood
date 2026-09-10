@@ -1,9 +1,19 @@
-# Cloudflare Pages 설정 (CLI 배포용)
-#   npx wrangler pages deploy
+# Cloudflare Workers 설정
 #
-# 대시보드에서 Git 연동으로 배포한다면 이 파일 없이도 동작한다.
+# 대시보드(Workers → Import a repository)로 배포하면 빌드/배포 명령은 이렇게 둔다:
+#   Build command  : npm run build
+#   Deploy command : npx wrangler deploy
+#
+# 로컬에서 서버까지 띄우려면: npm run dev:worker
+
 name = "mealgame"
-pages_build_output_dir = "dist"
+main = "worker/index.ts"
 compatibility_date = "2025-09-10"
 # Neon 드라이버가 일부 Node 내장 모듈을 참조할 수 있어 켜둔다
 compatibility_flags = ["nodejs_compat"]
+
+# 빌드된 SPA 를 Worker 와 함께 배포한다.
+# /assets/* 처럼 실제 파일이 있는 경로는 Worker 를 거치지 않고 바로 나간다.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
