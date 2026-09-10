@@ -23,8 +23,8 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-**설정이 하나도 없어도 그대로 돌아갑니다.** API 주소가 없으면 자동으로 *로컬 모드*로 동작하고,
-식당 데이터는 내장 목업을 사용합니다.
+**설정이 하나도 없어도 그대로 돌아갑니다.** 로컬 개발에서는 *로컬 모드*(같은 기기의 탭끼리 동기화)와
+내장 목업 식당 데이터로 동작합니다.
 
 ### 혼자서 4인 플레이 테스트하기
 
@@ -54,9 +54,9 @@ npm run dev          # http://localhost:5173
 
 | 변수 | 어디에 | 기본값 | 설명 |
 | --- | --- | --- | --- |
-| `VITE_API_BASE` | 클라이언트 | (없음) | 방 API 주소. 배포에서는 `/api`. 비우면 로컬 모드 |
+| `VITE_API_BASE` | 클라이언트 | 배포 `/api` · 개발 (없음) | 방 API 주소. **보통 설정할 필요 없음** |
 | `DATABASE_URL` | **서버 전용** | (없음) | Neon 커넥션 문자열. `VITE_` 를 붙이면 안 됨 |
-| `VITE_PLACES_PROVIDER` | 클라이언트 | `mock` | `mock` \| `kakao` \| `google` |
+| `VITE_PLACES_PROVIDER` | 클라이언트 | `kakao` | `mock` \| `kakao` \| `google`. **보통 설정할 필요 없음** |
 | `KAKAO_REST_API_KEY` | **서버 전용** | (없음) | 카카오 REST 키. `VITE_` 를 붙이면 안 됨 |
 | `GOOGLE_PLACES_API_KEY` | **서버 전용** | (없음) | 구글 Places 키. 있으면 카카오보다 우선 |
 | `GOOGLE_MONTHLY_LIMIT` | **서버 전용** | `900` | 구글 월 상한. 넘으면 카카오로 자동 전환 |
@@ -104,9 +104,11 @@ Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Workers** �
 빌드할 때 번들에 박히는 값입니다.
 
 ```
-VITE_API_BASE = /api
-NODE_VERSION  = 22
+NODE_VERSION = 22
 ```
+
+`VITE_API_BASE` 와 `VITE_PLACES_PROVIDER` 는 **설정하지 않아도 됩니다.**
+배포 빌드는 자동으로 `/api` + 카카오를 씁니다.
 
 **② 런타임 시크릿** (Worker 의 Settings → *Variables and Secrets*)
 배포된 Worker 가 실행 중에 읽는 값입니다. **Secret(암호화)** 로 추가하세요.
@@ -173,7 +175,7 @@ SPA 폴백은 `_redirects` 가 아니라 Worker 가 처리합니다.
 1. `https://<worker>.workers.dev` 접속 → 홈이 Pretendard 로 보이는지
 2. `https://<worker>.workers.dev/api/health` 가 `{"ok":true}` 인지 (DB 연결 확인)
 3. 방을 만들고 **다른 기기**에서 초대 링크로 입장 → 참가자 목록이 늘어나는지
-   (안 되면 `VITE_API_BASE` 또는 `DATABASE_URL` 미설정)
+   (안 되면 `DATABASE_URL` 미설정)
 4. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
 
 ---
@@ -343,16 +345,22 @@ GCP 에서 **Places API (New)** 를 켜고 키를 발급받아 Worker Secret 으
 * 사진은 **결과 화면에서 한 장만** 요청합니다. 목록 카드까지 띄우면 판당 이미지
   요청이 10배가 됩니다. `/api/places/photo` 프록시가 키를 감추고 7일 캐시합니다.
 
-**카카오 (무료, 대신 이름·거리만)**
+**카카오 (기본값 — 무료, 대신 이름·거리만)**
 
 ```
-VITE_PLACES_PROVIDER = kakao
-VITE_API_BASE        = /api
-KAKAO_REST_API_KEY   = ...        ← 런타임 Secret
+KAKAO_REST_API_KEY = ...          ← 런타임 Secret. 이것만 넣으면 됩니다
 ```
+
+기본 제공자가 카카오라서 빌드 변수는 손댈 필요가 없습니다.
+[카카오 개발자센터](https://developers.kakao.com)에서 애플리케이션을 만들고
+**REST API 키**를 발급받아 Worker Secret 으로 넣으세요.
+
+키를 아직 안 넣었다면 앱은 **내장 데모 식당 데이터로 동작합니다.**
+게임은 그대로 돌아가고, 콘솔에 안내 경고만 뜹니다. 키를 넣는 순간 실제 데이터로 바뀝니다.
 
 두 키가 다 있으면 평소에는 구글, 한도를 넘으면 카카오를 씁니다.
-`VITE_PLACES_PROVIDER` 는 화면이 어떤 항목을 보여줄지 정하는 값이라 `google` 로 두면 됩니다.
+이때는 `VITE_PLACES_PROVIDER=google` 을 빌드 변수로 넣어주세요
+(화면이 평점·가격대 항목을 보여줄지 이 값으로 정합니다).
 카카오로 내려간 뒤에는 평점·가격이 비어 오는데, 값이 없는 항목은 어차피 화면에서
 자동으로 빠지므로 깨지지 않습니다.
 

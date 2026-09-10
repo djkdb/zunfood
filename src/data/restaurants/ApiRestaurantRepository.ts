@@ -1,4 +1,5 @@
 import type { Restaurant, RestaurantQuery } from '@/types/restaurant';
+import { MockRestaurantRepository } from './MockRestaurantRepository';
 import {
   RestaurantSearchError,
   type RestaurantCapabilities,
@@ -31,6 +32,14 @@ export class ApiRestaurantRepository implements RestaurantRepository {
   readonly capabilities: RestaurantCapabilities;
   private readonly base: string;
 
+  /**
+   * 서버에 식당 API 키가 없을 때 쓰는 대비책.
+   * 키를 아직 안 넣었다고 앱이 죽으면 안 되니, 내장 목업으로 게임은 계속 돌아가게 한다.
+   * (capabilities 는 그대로 둬서, 실제로 못 거르는 필터가 화면에 나타나지 않게 한다)
+   */
+  private readonly fallback = new MockRestaurantRepository();
+  private useFallback = false;
+
   constructor(apiBase: string, provider: string) {
     this.base = apiBase.replace(/\/$/, '');
     this.source = provider;
@@ -38,6 +47,26 @@ export class ApiRestaurantRepository implements RestaurantRepository {
   }
 
   async search(query: RestaurantQuery): Promise<Restaurant[]> {
+    if (this.useFallback) return this.fallback.search(query);
+
+    try {
+      return await this.searchRemote(query);
+    } catch (error) {
+      // 키 미설정처럼 고쳐지지 않는 문제면 목업으로 내려간다.
+      // 일시적인 네트워크 오류는 그대로 던져서 "다시 시도" 를 보여준다.
+      if (error instanceof RestaurantSearchError && error.code === 'auth') {
+        console.warn(
+          '[MEALGAME] 식당 API 키가 설정되지 않아 데모 데이터로 동작합니다. ' +
+            'Worker Secret 에 KAKAO_REST_API_KEY 를 넣어주세요.',
+        );
+        this.useFallback = true;
+        return this.fallback.search(query);
+      }
+      throw error;
+    }
+  }
+
+  private async searchRemote(query: RestaurantQuery): Promise<Restaurant[]> {
     const url = new URL(`${this.base}/places`, window.location.origin);
     url.searchParams.set('lat', String(query.location.latitude));
     url.searchParams.set('lng', String(query.location.longitude));
