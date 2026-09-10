@@ -1,4 +1,5 @@
 import { GooglePlacesError, searchGoogle } from './places-google.ts';
+import type { Sql } from './sql';
 import type { FoodCategory, Restaurant } from '../src/types/restaurant';
 
 /**
@@ -44,12 +45,48 @@ export interface PlacesKeys {
   google?: string;
 }
 
+export interface PlacesOptions {
+  /** 사용량 카운터를 저장할 DB (없으면 한도 검사를 건너뛴다) */
+  sql?: Sql;
+  /** 구글 월 호출 상한. 넘으면 무료 제공자(카카오)로 자동 전환한다 */
+  googleMonthlyLimit?: number;
+}
+
+/**
+ * 이번 달 구글 호출을 한 건 예약한다.
+ *
+ * 한도 안이면 카운터를 올리고 true, 한도를 넘었으면 올리지 않고 false 를 반환한다.
+ * 한 문장으로 처리해서 동시에 여러 요청이 와도 한도를 넘기지 않는다.
+ */
+export async function reserveGoogleCall(sql: Sql, limit: number): Promise<boolean> {
+  const period = new Date().toISOString().slice(0, 7);
+  const rows = await sql`
+    insert into api_usage (provider, period, count)
+    values ('google', ${period}, 1)
+    on conflict (provider, period) do update
+      set count = api_usage.count + 1
+      where api_usage.count < ${limit}
+    returning count`;
+  return rows.length > 0;
+}
+
+/** 이번 달 사용량 조회 (운영 확인용) */
+export async function readUsage(sql: Sql): Promise<Record<string, number>> {
+  const period = new Date().toISOString().slice(0, 7);
+  const rows = await sql`select provider, count from api_usage where period = ${period}`;
+  return Object.fromEntries(rows.map((r) => [String(r.provider), Number(r.count)]));
+}
+
 /**
  * GET /api/places?lat=&lng=&radius=&limit=
  *
  * 구글 키가 있으면 구글(평점·가격대·영업여부·사진), 없으면 카카오를 쓴다.
  */
-export async function handlePlaces(request: Request, keys: PlacesKeys | string): Promise<Response> {
+export async function handlePlaces(
+  request: Request,
+  keys: PlacesKeys | string,
+  options: PlacesOptions = {},
+): Promise<Response> {
   // 문자열로 오면 카카오 키로 간주한다 (이전 호출부 호환)
   const resolved: PlacesKeys = typeof keys === 'string' ? { kakao: keys } : keys;
   const params = new URL(request.url).searchParams;
@@ -61,16 +98,38 @@ export async function handlePlaces(request: Request, keys: PlacesKeys | string):
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return json({ error: 'bad_request', message: '좌표가 올바르지 않습니다.' }, 400);
   }
-  const provider = resolved.google ? 'google' : resolved.kakao ? 'kakao' : null;
-  if (!provider) {
+  if (!resolved.google && !resolved.kakao) {
     return json({ error: 'auth', message: '식당 데이터 API 키가 설정되지 않았습니다.' }, 500);
   }
 
+  // 구글은 무료 한도를 넘으면 과금된다. 한도에 닿으면 카카오로 조용히 내려간다.
+  let useGoogle = Boolean(resolved.google);
+  if (useGoogle && options.sql && options.googleMonthlyLimit) {
+    const allowed = await reserveGoogleCall(options.sql, options.googleMonthlyLimit);
+    if (!allowed && resolved.kakao) useGoogle = false;
+  }
+
+  const provider = useGoogle ? 'google' : 'kakao';
+
   try {
-    const restaurants =
-      provider === 'google'
-        ? await searchGoogle({ lat, lng, radius, limit, apiKey: resolved.google as string })
-        : await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao as string });
+    let restaurants: Restaurant[];
+    if (provider === 'google') {
+      try {
+        restaurants = await searchGoogle({
+          lat, lng, radius, limit, apiKey: resolved.google as string,
+        });
+      } catch (error) {
+        // 구글이 실패해도 카카오가 있으면 게임은 계속되게 한다
+        if (!resolved.kakao) throw error;
+        return json(
+          { provider: 'kakao', restaurants: await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao }) },
+          200,
+          { 'cache-control': 'public, max-age=300' },
+        );
+      }
+    } else {
+      restaurants = await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao as string });
+    }
 
     return json(
       { provider, restaurants },

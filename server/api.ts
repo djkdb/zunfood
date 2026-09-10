@@ -1,3 +1,4 @@
+import { readUsage } from './places.ts';
 import type { Sql } from './sql';
 
 /**
@@ -75,10 +76,16 @@ export async function handleApi(request: Request, sql: Sql): Promise<Response> {
       }
     }
 
-    // GET /api/health
+    // GET /api/health — DB 연결 + 이번 달 외부 API 사용량
     if (method === 'GET' && segments[0] === 'health') {
       await sql`select 1`;
-      return json({ ok: true });
+      let usage: Record<string, number> = {};
+      try {
+        usage = await readUsage(sql);
+      } catch {
+        // 사용량 테이블이 아직 없어도 health 는 성공으로 본다
+      }
+      return json({ ok: true, usage });
     }
 
     throw new ApiError(404, 'not_found');

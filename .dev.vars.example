@@ -9,3 +9,6 @@ DATABASE_URL=postgresql://user:password@ep-xxxx.ap-southeast-1.aws.neon.tech/mea
 KAKAO_REST_API_KEY=
 # 구글 (평점·가격대·영업여부·사진): GCP > API 및 서비스 > 사용자 인증 정보
 GOOGLE_PLACES_API_KEY=
+# 구글 월 호출 상한. 넘으면 카카오로 자동 전환합니다 (기본 900).
+# 구글 무료 한도가 월 1,000건이라 여유를 두고 잡습니다.
+GOOGLE_MONTHLY_LIMIT=900

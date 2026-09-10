@@ -13,6 +13,11 @@ export interface Env {
   KAKAO_REST_API_KEY?: string;
   /** 구글 Places API 키 (평점·가격대·영업여부·사진). 있으면 이쪽을 우선 쓴다 */
   GOOGLE_PLACES_API_KEY?: string;
+  /**
+   * 구글 월 호출 상한. 넘으면 카카오로 자동 전환한다.
+   * 구글 무료 한도가 월 1,000건이라 기본값은 여유를 둔 900.
+   */
+  GOOGLE_MONTHLY_LIMIT?: string;
 }
 
 /**
@@ -52,10 +57,15 @@ export default {
       const cached = await cache.match(request);
       if (cached) return cached;
 
-      const response = await handlePlaces(request, {
-        kakao: env.KAKAO_REST_API_KEY,
-        google: env.GOOGLE_PLACES_API_KEY,
-      });
+      const response = await handlePlaces(
+        request,
+        { kakao: env.KAKAO_REST_API_KEY, google: env.GOOGLE_PLACES_API_KEY },
+        {
+          // 사용량 카운터는 방 DB 를 그대로 쓴다
+          sql: env.DATABASE_URL ? (neon(env.DATABASE_URL) as unknown as Sql) : undefined,
+          googleMonthlyLimit: Number(env.GOOGLE_MONTHLY_LIMIT) || 900,
+        },
+      );
       // 같은 좌표를 다시 검색해도 외부 API 할당량을 다시 쓰지 않게 잠깐 저장해둔다
       if (response.ok && request.method === 'GET') {
         ctx.waitUntil(cache.put(request, response.clone()));

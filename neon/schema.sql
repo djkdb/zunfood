@@ -122,3 +122,13 @@ create or replace function cleanup_expired_rooms() returns void
 language sql as $$
   delete from rooms where expires_at < now();
 $$;
+
+-- 외부 API 사용량 ------------------------------------------------------
+-- 구글 Places 처럼 유료 전환되는 API 의 월 사용량을 세어, 무료 한도를 넘기 전에
+-- 무료 제공자(카카오)로 자동 전환하기 위한 카운터.
+create table if not exists api_usage (
+  provider text not null,
+  period   text not null,          -- 'YYYY-MM'
+  count    int  not null default 0,
+  primary key (provider, period)
+);
