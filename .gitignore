@@ -9,3 +9,6 @@ dist-ssr
 *.log
 .vite
 *.tsbuildinfo
+
+# wrangler 로컬 캐시/임시 파일
+.wrangler
