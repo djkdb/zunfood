@@ -70,6 +70,87 @@ npm run dev          # http://localhost:5173
 스키마는 `rooms` · `players` · `game_actions` 세 테이블과 Realtime 발행 설정을 포함합니다.
 MVP 는 로그인이 없어 anon 정책이 열려 있습니다 — 운영 전에 RLS 를 조여야 합니다(아래 *다음 단계* 참고).
 
+
+---
+
+## Cloudflare Pages 배포
+
+> ⚠️ **가장 중요**: Supabase 환경변수 없이 배포하면 *로컬 모드*로 동작합니다.
+> 같은 기기의 탭끼리만 동기화되므로, **친구가 각자 휴대폰으로 들어오는 실제 사용은 되지 않습니다.**
+> 실제로 서비스하려면 아래 `VITE_SUPABASE_*` 두 개를 반드시 설정하세요.
+
+### 1) 대시보드에서 Git 연동 (권장)
+
+Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**
+
+| 항목 | 값 |
+| --- | --- |
+| Framework preset | `Vite` (또는 None) |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Root directory | `/` |
+
+**Environment variables** 에 아래를 추가합니다 (Production / Preview 각각).
+
+```
+VITE_SUPABASE_URL       = https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY  = eyJhbG...
+NODE_VERSION            = 22
+```
+
+`Save and Deploy` 를 누르면 빌드 후 `https://<project>.pages.dev` 로 올라갑니다.
+이후 브랜치에 푸시할 때마다 자동 배포되고, PR 마다 미리보기 URL이 생깁니다.
+
+### 2) CLI 로 배포
+
+```bash
+npx wrangler login
+npm run deploy          # 빌드 후 wrangler pages deploy
+```
+
+`wrangler.toml` 에 프로젝트 이름과 출력 폴더가 들어 있습니다.
+로컬에서 Pages 환경 그대로 확인하려면:
+
+```bash
+npm run deploy:preview  # wrangler pages dev dist
+```
+
+### 환경변수 주의점
+
+`VITE_` 접두사 값은 **빌드 시점에 번들에 박히고 브라우저에 공개**됩니다.
+
+* Supabase **anon key** 는 공개되는 것이 정상입니다. 대신 **RLS 가 실제 방어선**이므로
+  운영 전에 [`src/supabase/schema.sql`](src/supabase/schema.sql) 의 정책을 반드시 좁히세요.
+* 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
+* 카카오 REST 키(`VITE_KAKAO_REST_API_KEY`)는 그대로 노출됩니다.
+  실제 운영에서는 Pages Functions(`functions/api/places.ts`)로 프록시를 두고
+  키는 Cloudflare Secret 에 넣은 뒤, `RestaurantRepository` 구현만 그 URL을 보게 바꾸세요.
+
+### 저장소에 들어 있는 배포 설정
+
+| 파일 | 역할 |
+| --- | --- |
+| `public/_redirects` | SPA 폴백. `/join/A7K3` 처럼 새로고침해도 200으로 앱이 뜬다 |
+| `public/_headers` | 해시 자산 영구 캐시, `index.html` 무캐시, 보안 헤더, `geolocation=(self)` |
+| `wrangler.toml` | CLI 배포용 프로젝트 설정 |
+| `.nvmrc` | Node 22 고정 |
+
+`Permissions-Policy` 에서 **geolocation 은 반드시 허용**해야 합니다 —
+막으면 "현재 위치 사용" 이 조용히 실패합니다.
+
+### 커스텀 도메인
+
+프로젝트 → **Custom domains** → 도메인 추가.
+같은 Cloudflare 계정의 도메인이면 DNS 가 자동으로 잡힙니다.
+초대 링크(`inviteUrl`)는 `window.location.origin` 을 쓰므로 별도 설정이 필요 없습니다.
+
+### 배포 후 확인
+
+1. `https://<project>.pages.dev` 접속 → 홈이 Pretendard 로 보이는지
+2. 방을 만들고 **다른 기기**에서 초대 링크로 입장 → 참가자 목록이 실시간으로 늘어나는지
+   (안 되면 Supabase 환경변수 미설정)
+3. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
+
 ---
 
 ## 아키텍처

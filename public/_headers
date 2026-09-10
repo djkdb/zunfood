@@ -1,0 +1,20 @@
+# Cloudflare Pages 응답 헤더
+# https://developers.cloudflare.com/pages/configuration/headers/
+
+# 해시가 붙은 산출물은 영구 캐시 (파일명이 바뀌면 새로 받는다)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# 진입 문서는 캐시하지 않는다 — 배포 즉시 새 버전이 보이게
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  # 현재 위치 기능을 쓰므로 geolocation 은 자기 출처에 한해 허용한다
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()

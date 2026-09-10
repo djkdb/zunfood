@@ -1,0 +1,7 @@
+# Cloudflare Pages 설정 (CLI 배포용)
+#   npx wrangler pages deploy
+#
+# 대시보드에서 Git 연동으로 배포한다면 이 파일 없이도 동작한다.
+name = "mealgame"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-09-10"
