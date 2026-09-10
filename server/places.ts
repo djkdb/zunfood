@@ -179,14 +179,9 @@ export async function searchKakao(input: {
         throw new PlacesError(502, 'network', '식당 정보를 불러오지 못했어요.');
       }
 
-      if (response.status === 401 || response.status === 403) {
-        throw new PlacesError(502, 'auth', '식당 데이터 API 인증에 실패했어요.');
-      }
-      if (response.status === 429) {
-        throw new PlacesError(503, 'quota', '오늘 식당 검색 한도를 다 썼어요.');
-      }
+      // 오류 분류는 한 곳에서만 한다 — 상태 코드와 본문을 함께 봐야 정확하다
       if (!response.ok) {
-        throw new PlacesError(502, 'unknown', '식당 정보를 불러오지 못했어요.');
+        throw new PlacesError(...(await classifyKakaoFailure(response)));
       }
 
       const body = (await response.json()) as {
@@ -205,6 +200,40 @@ export async function searchKakao(input: {
   }
 
   return collected.sort((a, b) => a.distance - b.distance).slice(0, limit);
+}
+
+/**
+ * 카카오 오류 응답 분류.
+ *
+ * 카카오는 쿼터 초과를 429 로만 주지 않는다. 4xx 본문에 코드 -10 과
+ * "API limit has been exceeded" 로 오기도 해서, 상태 코드보다 본문을 먼저 본다.
+ * 원인별로 다른 메시지를 줘야 사용자가 뭘 해야 할지 알 수 있다.
+ */
+async function classifyKakaoFailure(
+  response: Response,
+): Promise<[number, string, string]> {
+  let body = '';
+  try {
+    body = await response.text();
+  } catch {
+    // 본문을 못 읽으면 상태 코드만으로 판단한다
+  }
+
+  if (
+    response.status === 429 ||
+    body.includes('"code":-10') ||
+    body.includes('limit has been exceeded') ||
+    body.includes('quota')
+  ) {
+    return [503, 'quota', '오늘 식당 검색 한도를 다 썼어요. 내일 다시 시도해 주세요.'];
+  }
+
+  // 앱에서 카카오맵 API [사용 설정] 을 켜지 않은 경우도 인증 문제로 묶는다
+  if (response.status === 401 || response.status === 403 || body.includes('disabled')) {
+    return [502, 'auth', '식당 데이터 API 인증에 실패했어요.'];
+  }
+
+  return [502, 'unknown', '식당 정보를 불러오지 못했어요.'];
 }
 
 export function toRestaurant(doc: KakaoPlace): Restaurant {
