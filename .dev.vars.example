@@ -1,0 +1,4 @@
+# Cloudflare Pages Functions 로컬 실행용 (wrangler pages dev 가 읽습니다)
+# 이 파일을 .dev.vars 로 복사한 뒤 Neon 커넥션 문자열을 넣으세요.
+# .dev.vars 는 커밋되지 않습니다.
+DATABASE_URL=postgresql://user:password@ep-xxxx.ap-southeast-1.aws.neon.tech/mealgame?sslmode=require

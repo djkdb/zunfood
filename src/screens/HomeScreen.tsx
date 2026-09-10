@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { APP } from '@/config/app';
 import { Screen } from '@/components/ui/Screen';
-import { hasSupabase } from '@/config/env';
+import { hasRemoteBackend } from '@/config/env';
 import { GAMES } from '@/games/registry';
 
 export function HomeScreen() {
@@ -89,7 +89,7 @@ export function HomeScreen() {
           초대 코드가 있어요
         </button>
 
-        {!hasSupabase && (
+        {!hasRemoteBackend && (
           <p className="mt-1 text-center text-xs text-ink-300">
             로컬 모드 · 같은 기기의 여러 탭으로 테스트할 수 있어요
           </p>

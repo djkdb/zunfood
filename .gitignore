@@ -12,3 +12,6 @@ dist-ssr
 
 # wrangler 로컬 캐시/임시 파일
 .wrangler
+
+# Cloudflare Pages Functions 로컬 시크릿
+.dev.vars

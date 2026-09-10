@@ -12,7 +12,7 @@
     "deploy:preview": "npm run build && npx wrangler pages dev dist"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.4",
+    "@neondatabase/serverless": "^1.1.0",
     "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",
     "framer-motion": "^11.11.9",
@@ -24,6 +24,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@types/canvas-confetti": "^1.6.4",
     "@types/node": "^22.20.2",
     "@types/qrcode": "^1.5.5",

@@ -5,8 +5,11 @@
 const raw = import.meta.env;
 
 export const ENV = {
-  supabaseUrl: (raw.VITE_SUPABASE_URL ?? '').trim(),
-  supabaseAnonKey: (raw.VITE_SUPABASE_ANON_KEY ?? '').trim(),
+  /**
+   * 방 API 주소. Cloudflare Pages 에 배포하면 '/api' 로 두면 된다.
+   * 비워두면 같은 기기의 탭끼리만 동기화되는 로컬 모드로 동작한다.
+   */
+  apiBase: (raw.VITE_API_BASE ?? '').trim(),
   /** 'mock' | 'kakao' — 식당 데이터 소스 */
   placesProvider: (raw.VITE_PLACES_PROVIDER ?? 'mock').trim(),
   kakaoRestApiKey: (raw.VITE_KAKAO_REST_API_KEY ?? '').trim(),
@@ -16,4 +19,5 @@ export const ENV = {
   aiJudgeEndpoint: (raw.VITE_AI_JUDGE_ENDPOINT ?? '').trim(),
 } as const;
 
-export const hasSupabase = Boolean(ENV.supabaseUrl && ENV.supabaseAnonKey);
+/** 서버 백엔드(Neon)를 쓸 수 있는지 — 다른 기기 간 동기화 가능 여부와 같다 */
+export const hasRemoteBackend = Boolean(ENV.apiBase);

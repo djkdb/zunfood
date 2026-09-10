@@ -5,3 +5,5 @@
 name = "mealgame"
 pages_build_output_dir = "dist"
 compatibility_date = "2025-09-10"
+# Neon 드라이버가 일부 Node 내장 모듈을 참조할 수 있어 켜둔다
+compatibility_flags = ["nodejs_compat"]

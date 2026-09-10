@@ -48,7 +48,7 @@ export type Unsubscribe = () => void;
 
 /** 방 상태 저장 + 실시간 동기화 백엔드 */
 export interface RoomBackend {
-  readonly kind: 'local' | 'supabase';
+  readonly kind: 'local' | 'neon';
   createRoom(input: CreateRoomInput): Promise<{ room: Room; player: Player }>;
   joinRoom(code: string, nickname: string): Promise<{ room: Room; player: Player }>;
   getSnapshot(roomId: string): Promise<RoomSnapshot | null>;

@@ -23,7 +23,7 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-**설정이 하나도 없어도 그대로 돌아갑니다.** Supabase 값이 없으면 자동으로 *로컬 모드*로 동작하고,
+**설정이 하나도 없어도 그대로 돌아갑니다.** API 주소가 없으면 자동으로 *로컬 모드*로 동작하고,
 식당 데이터는 내장 목업을 사용합니다.
 
 ### 혼자서 4인 플레이 테스트하기
@@ -35,7 +35,7 @@ npm run dev          # http://localhost:5173
 2. 탭 2~4 → `http://localhost:5173/join/A7K3` → 각자 다른 닉네임으로 입장
 3. 탭 1에서 게임 시작 → 네 탭 모두에서 진행 상황이 실시간으로 바뀝니다
 
-> 서로 다른 **기기**끼리 플레이하려면 아래 Supabase 설정이 필요합니다.
+> 서로 다른 **기기**끼리 플레이하려면 아래 Neon + API 설정이 필요합니다.
 
 ### 스크립트
 
@@ -52,32 +52,39 @@ npm run dev          # http://localhost:5173
 
 `.env.example` 을 `.env` 로 복사해서 채웁니다. **API 키는 소스에 넣지 않습니다.**
 
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `VITE_SUPABASE_URL` | (없음) | 있으면 기기 간 실시간 동기화 사용 |
-| `VITE_SUPABASE_ANON_KEY` | (없음) | 위와 함께 설정 |
-| `VITE_PLACES_PROVIDER` | `mock` | `mock` \| `kakao` |
-| `VITE_KAKAO_REST_API_KEY` | (없음) | `kakao` 일 때만 필요 |
-| `VITE_AI_JUDGE_PROVIDER` | `mock` | `mock` \| `http` |
-| `VITE_AI_JUDGE_ENDPOINT` | (없음) | 판결을 위임할 서버 URL (LLM 키는 **서버에** 보관) |
+| 변수 | 어디에 | 기본값 | 설명 |
+| --- | --- | --- | --- |
+| `VITE_API_BASE` | 클라이언트 | (없음) | 방 API 주소. 배포에서는 `/api`. 비우면 로컬 모드 |
+| `DATABASE_URL` | **서버 전용** | (없음) | Neon 커넥션 문자열. `VITE_` 를 붙이면 안 됨 |
+| `VITE_PLACES_PROVIDER` | 클라이언트 | `mock` | `mock` \| `kakao` |
+| `VITE_KAKAO_REST_API_KEY` | 클라이언트 | (없음) | `kakao` 일 때만 필요 |
+| `VITE_AI_JUDGE_PROVIDER` | 클라이언트 | `mock` | `mock` \| `http` |
+| `VITE_AI_JUDGE_ENDPOINT` | 클라이언트 | (없음) | 판결 위임 서버 URL (LLM 키는 **서버에**) |
 
-### Supabase 연결 (기기 간 실시간)
+### Neon 연결 (기기 간 동기화)
 
-1. Supabase 프로젝트 생성
-2. SQL Editor 에서 [`src/supabase/schema.sql`](src/supabase/schema.sql) 실행
-3. `.env` 에 URL / anon key 입력 후 재시작
+1. [Neon](https://neon.tech) 프로젝트 생성 후 커넥션 문자열 복사
+2. 스키마 적용
+   ```bash
+   psql "$DATABASE_URL" -f neon/schema.sql
+   ```
+3. 서버 시크릿과 클라이언트 API 주소 설정
+   * 로컬: `.dev.vars` 에 `DATABASE_URL=...`, `.env` 에 `VITE_API_BASE=/api`
+   * 배포: Cloudflare Secret 에 `DATABASE_URL`, 환경변수에 `VITE_API_BASE=/api`
+4. 로컬에서 서버까지 돌리려면 `npx wrangler pages dev dist` (Vite dev 서버에는 /api 가 없습니다)
 
-스키마는 `rooms` · `players` · `game_actions` 세 테이블과 Realtime 발행 설정을 포함합니다.
-MVP 는 로그인이 없어 anon 정책이 열려 있습니다 — 운영 전에 RLS 를 조여야 합니다(아래 *다음 단계* 참고).
+**Supabase 와의 차이**: Neon 은 실시간 구독이 없고, 커넥션 문자열은 브라우저에 둘 수 없습니다.
+그래서 브라우저 → **Cloudflare Pages Functions(`/api`)** → Neon 구조이고,
+동기화는 구독 대신 **폴링**으로 합니다(아래 참고). 대신 DB 자격증명이 클라이언트에
+전혀 노출되지 않고, 방장 전용 동작을 서버에서 검증합니다.
 
 
 ---
 
 ## Cloudflare Pages 배포
 
-> ⚠️ **가장 중요**: Supabase 환경변수 없이 배포하면 *로컬 모드*로 동작합니다.
+> ⚠️ **가장 중요**: `DATABASE_URL` 과 `VITE_API_BASE` 없이 배포하면 *로컬 모드*로 동작합니다.
 > 같은 기기의 탭끼리만 동기화되므로, **친구가 각자 휴대폰으로 들어오는 실제 사용은 되지 않습니다.**
-> 실제로 서비스하려면 아래 `VITE_SUPABASE_*` 두 개를 반드시 설정하세요.
 
 ### 1) 대시보드에서 Git 연동 (권장)
 
@@ -93,9 +100,15 @@ Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Pages** →
 **Environment variables** 에 아래를 추가합니다 (Production / Preview 각각).
 
 ```
-VITE_SUPABASE_URL       = https://xxxx.supabase.co
-VITE_SUPABASE_ANON_KEY  = eyJhbG...
-NODE_VERSION            = 22
+VITE_API_BASE = /api
+NODE_VERSION  = 22
+```
+
+그리고 **Settings → Functions → Environment variables** 에서 `DATABASE_URL` 을
+**Secret(암호화)** 으로 추가합니다. `VITE_` 를 붙이면 브라우저에 노출되니 절대 붙이지 마세요.
+
+```
+DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require   ← Secret
 ```
 
 `Save and Deploy` 를 누르면 빌드 후 `https://<project>.pages.dev` 로 올라갑니다.
@@ -119,9 +132,9 @@ npm run deploy:preview  # wrangler pages dev dist
 
 `VITE_` 접두사 값은 **빌드 시점에 번들에 박히고 브라우저에 공개**됩니다.
 
-* Supabase **anon key** 는 공개되는 것이 정상입니다. 대신 **RLS 가 실제 방어선**이므로
-  운영 전에 [`src/supabase/schema.sql`](src/supabase/schema.sql) 의 정책을 반드시 좁히세요.
-* 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
+* `DATABASE_URL` 은 **`VITE_` 가 없으므로 서버에만 남습니다.** 브라우저 번들에 들어가지 않습니다.
+  (Supabase 처럼 anon key 를 공개하고 RLS 로 막는 구조가 아니라, 애초에 DB 에 직접 접근하지 않습니다.)
+* `VITE_` 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
 * 카카오 REST 키(`VITE_KAKAO_REST_API_KEY`)는 그대로 노출됩니다.
   실제 운영에서는 Pages Functions(`functions/api/places.ts`)로 프록시를 두고
   키는 Cloudflare Secret 에 넣은 뒤, `RestaurantRepository` 구현만 그 URL을 보게 바꾸세요.
@@ -147,9 +160,10 @@ npm run deploy:preview  # wrangler pages dev dist
 ### 배포 후 확인
 
 1. `https://<project>.pages.dev` 접속 → 홈이 Pretendard 로 보이는지
-2. 방을 만들고 **다른 기기**에서 초대 링크로 입장 → 참가자 목록이 실시간으로 늘어나는지
-   (안 되면 Supabase 환경변수 미설정)
-3. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
+2. `https://<project>.pages.dev/api/health` 가 `{"ok":true}` 인지 (DB 연결 확인)
+3. 방을 만들고 **다른 기기**에서 초대 링크로 입장 → 참가자 목록이 늘어나는지
+   (안 되면 `VITE_API_BASE` 또는 `DATABASE_URL` 미설정)
+4. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
 
 ---
 
@@ -163,13 +177,17 @@ src/
 │  ├─ restaurants/    RestaurantRepository ← Mock / Kakao 구현
 │  ├─ places/         PlaceRepository (학교·장소 검색)
 │  └─ ai/             JudgeProvider ← Mock / HTTP 구현
-├─ realtime/        RoomBackend ← LocalRoomBackend / SupabaseRoomBackend
+├─ realtime/        RoomBackend ← LocalRoomBackend / NeonRoomBackend
 │  └─ HostEngine    호스트에서 도는 게임 런타임 (권위 있는 상태)
 ├─ games/           게임별 순수 로직(logic.ts) + 화면(View.tsx)
 ├─ solo/            혼자 결정하기 로직 (결정 방식 5종)
 ├─ store/           roomStore(멀티) · soloStore(싱글) · toastStore · 탭 단위 신원
 ├─ components/ui/   디자인 시스템 프리미티브
 └─ screens/         화면 (홈/솔로/생성/참가/대기실/게임선택/플레이/결과)
+
+server/             방 API (DB 접근·권한 검증) — 브라우저에서 import 하지 않는다
+functions/api/      Cloudflare Pages Functions 진입점 (server/api.ts 를 Neon 에 연결)
+neon/schema.sql     Neon(Postgres) 스키마
 ```
 
 싱글과 멀티의 상태는 스토어 단위로 완전히 분리되어 있습니다.
@@ -200,7 +218,31 @@ src/
 * 결과는 항상 **시드(seed)** 로부터 계산합니다 → 모두가 같은 룰렛 칸, 같은 당첨을 봅니다.
 * `GameMode.toPublicState()` 가 비밀 정보를 지웁니다. 음식 배틀에서 **누가 뭘 골랐는지는
   전원 투표 전까지 어떤 화면에도 내려가지 않습니다** (집계만 공개).
-* 백엔드는 `RoomBackend` 인터페이스 하나로 추상화되어 있어, Supabase 없이도 로컬 모드가 동일하게 동작합니다.
+* 백엔드는 `RoomBackend` 인터페이스 하나로 추상화되어 있어, 서버 없이도 로컬 모드가 동일하게 동작합니다.
+
+### 동기화 방식 — 폴링 (Neon 에는 실시간 구독이 없다)
+
+```
+참가자 ──POST /api/.../actions──▶ Neon
+방장   ──GET  /api/.../actions?after=N──▶ 새 액션만 수신 → HostEngine 계산
+       ──PUT  /api/.../state──▶ 공개 상태 저장
+모두   ──GET  /api/rooms/:id?rev=N──▶ rev 가 그대로면 204(본문 없음)
+```
+
+* 방의 모든 변경은 `rev` 를 1 올립니다. 클라이언트가 아는 `rev` 를 같이 보내므로,
+  바뀐 게 없으면 서버가 **204** 로 끊어 폴링을 싸게 만듭니다.
+* 후보 식당 목록은 거의 안 바뀌므로 `candidates_rev` 로 따로 추적해서 **바뀔 때만** 내려보냅니다.
+* 주기는 상태에 따라 바뀝니다 — 대기실 2.5초, 게임 중 1초(액션은 0.6초), 결과 4초.
+  액션 폴링은 **게임 중에만**, **방장만** 합니다.
+
+실측: 대기실에 4명이 있을 때 **초당 약 2건**, 10분 세션이면 약 1,200건입니다.
+Cloudflare Pages Functions 무료 한도(하루 10만 요청) 기준으로 하루 수십 세션 규모입니다.
+
+투표 → 화면 반영까지는 최악 약 1.6초(액션 폴링 0.6초 + 스냅샷 1초)입니다.
+카운트다운은 서버 시각 기준으로 계산하므로 폴링 지연과 무관하게 모두 같은 숫자를 봅니다.
+
+더 낮은 지연이 필요해지면 Cloudflare **Durable Objects** 로 방마다 WebSocket 허브를 두고
+Neon 은 영속 저장만 맡기는 구조로 확장할 수 있습니다. `RoomBackend` 구현만 바꾸면 됩니다.
 
 ### 새 게임 추가하기
 
@@ -293,9 +335,10 @@ interface RestaurantRepository {
 첫 로딩에 받는 JS는 **약 102KB(gzip)** 입니다.
 
 * 라우트 단위 코드 분할 — 홈 밖의 화면은 필요할 때 로드
-* Supabase(59KB gz)는 방에 들어갈 때만 로드 (혼자 쓰면 아예 안 받음)
+* DB 클라이언트가 번들에 없습니다. 브라우저는 `fetch` 로 `/api` 만 호출하므로
+  무거운 DB SDK 를 내려받지 않습니다 (Supabase 를 쓰던 때는 이것만 59KB gz 였습니다)
 * QR·컨페티 라이브러리는 실제로 쓰이는 순간 동적 로드
-* react / framer-motion / supabase 는 벤더 청크로 분리해 캐시 유지
+* react / framer-motion 은 벤더 청크로 분리해 캐시 유지
 
 ### 서체
 
@@ -318,9 +361,9 @@ dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 
 
 1. **실제 Places API 연결** — 카카오 REST 키를 노출하지 않도록 서버 프록시를 두고
    `RestaurantRepository` 구현만 교체 (평점·가격은 별도 소스 필요).
-2. **RLS 조이기** — 현재 anon 전면 허용. 방 코드 기반 접근 제어나 Edge Function 경유 쓰기로 변경.
-3. **투표 비밀성 서버 강제** — 지금은 화면 단계에서 가려집니다. Edge Function 에서 집계하면
-   DB 를 직접 보는 것도 막을 수 있습니다.
+2. **레이트 리밋** — `/api` 에 방 코드/IP 기준 제한을 걸어 무차별 코드 추측을 막기.
+3. **투표 비밀성 서버 강제** — 지금도 서버가 공개 상태만 내려주므로 화면에는 새지 않습니다.
+   더 엄격히 하려면 집계를 서버로 옮기면 됩니다.
 4. **게임 확장** — 사다리, 가위바위보, 예산 생존게임 등 (`GameMode` 만 추가하면 됨).
 5. **결과 이미지 저장/공유** — 결과 화면을 이미지로 내보내 스토리에 바로 올리기.
 6. **PWA** — 홈 화면 추가 + 오프라인 셸.
@@ -332,4 +375,4 @@ dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 
 ## 기술 스택
 
 React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · Zustand · Framer Motion ·
-Supabase(Postgres + Realtime) · Pretendard · qrcode · canvas-confetti
+Neon(Postgres) · Cloudflare Pages Functions · Pretendard · qrcode · canvas-confetti
