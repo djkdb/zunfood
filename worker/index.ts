@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { handleApi } from '../server/api';
+import { handlePlaces } from '../server/places';
 import type { Sql } from '../server/sql';
 
 export interface Env {
@@ -7,6 +8,8 @@ export interface Env {
   ASSETS: Fetcher;
   /** Neon 커넥션 문자열. 대시보드에 Secret 으로 넣는다 (VITE_ 접두사 금지) */
   DATABASE_URL: string;
+  /** 카카오 REST API 키. 없으면 앱은 목업 식당 데이터로 동작한다 */
+  KAKAO_REST_API_KEY?: string;
 }
 
 /**
@@ -19,8 +22,22 @@ export interface Env {
  * 해시가 붙은 정적 자산(/assets/*)은 자산 계층에서 바로 나가고 Worker 는 실행되지 않는다.
  */
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+
+    // 식당 검색 프록시 — 카카오 키를 브라우저에 내보내지 않기 위해 서버에서만 부른다
+    if (url.pathname === '/api/places') {
+      const cache = caches.default;
+      const cached = await cache.match(request);
+      if (cached) return cached;
+
+      const response = await handlePlaces(request, env.KAKAO_REST_API_KEY ?? '');
+      // 같은 좌표를 다시 검색해도 카카오 할당량을 다시 쓰지 않게 잠깐 저장해둔다
+      if (response.ok && request.method === 'GET') {
+        ctx.waitUntil(cache.put(request, response.clone()));
+      }
+      return response;
+    }
 
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       if (!env.DATABASE_URL) {

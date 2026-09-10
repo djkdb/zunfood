@@ -2,7 +2,7 @@ import type { Restaurant, RestaurantQuery } from '@/types/restaurant';
 import { distanceInMeters } from '@/lib/geo';
 import { createRandom, hashString } from '@/lib/random';
 import { RESTAURANT_TEMPLATES, type RestaurantTemplate } from './fixtures';
-import type { RestaurantRepository } from './RestaurantRepository';
+import type { RestaurantCapabilities, RestaurantRepository } from './RestaurantRepository';
 
 const METERS_PER_DEG_LAT = 111_320;
 const MAX_SPREAD_M = 2_000;
@@ -16,6 +16,13 @@ const MAX_SPREAD_M = 2_000;
  */
 export class MockRestaurantRepository implements RestaurantRepository {
   readonly source = 'mock' as const;
+  /** 목업은 픽스처에 모든 값이 들어 있다 */
+  readonly capabilities: RestaurantCapabilities = {
+    rating: true,
+    price: true,
+    openNow: true,
+    photo: false,
+  };
 
   async search(query: RestaurantQuery): Promise<Restaurant[]> {
     // 실제 네트워크 호출처럼 보이도록 아주 짧은 지연을 준다.

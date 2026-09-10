@@ -57,7 +57,7 @@ npm run dev          # http://localhost:5173
 | `VITE_API_BASE` | 클라이언트 | (없음) | 방 API 주소. 배포에서는 `/api`. 비우면 로컬 모드 |
 | `DATABASE_URL` | **서버 전용** | (없음) | Neon 커넥션 문자열. `VITE_` 를 붙이면 안 됨 |
 | `VITE_PLACES_PROVIDER` | 클라이언트 | `mock` | `mock` \| `kakao` |
-| `VITE_KAKAO_REST_API_KEY` | 클라이언트 | (없음) | `kakao` 일 때만 필요 |
+| `KAKAO_REST_API_KEY` | **서버 전용** | (없음) | 카카오 REST 키. `VITE_` 를 붙이면 안 됨 |
 | `VITE_AI_JUDGE_PROVIDER` | 클라이언트 | `mock` | `mock` \| `http` |
 | `VITE_AI_JUDGE_ENDPOINT` | 클라이언트 | (없음) | 판결 위임 서버 URL (LLM 키는 **서버에**) |
 
@@ -142,8 +142,7 @@ npm run dev:worker               # 빌드 후 wrangler dev
   (Supabase 처럼 anon key 를 공개하고 RLS 로 막는 구조가 아니라, 애초에 DB 에 직접 접근하지 않습니다.)
 * `VITE_` 값을 바꾸면 **재배포(재빌드)** 해야 반영됩니다. 런타임에 읽지 않습니다.
 * 카카오 REST 키(`VITE_KAKAO_REST_API_KEY`)는 그대로 노출됩니다.
-  실제 운영에서는 Worker 안에 `/api/places` 프록시를 두고 키는 Cloudflare Secret 에 넣은 뒤,
-  `RestaurantRepository` 구현만 그 URL 을 보게 바꾸세요.
+  카카오 키는 `/api/places` 프록시를 통해 서버에만 두므로 브라우저에 노출되지 않습니다.
 
 ### 저장소에 들어 있는 배포 설정
 
@@ -195,7 +194,7 @@ src/
 ├─ components/ui/   디자인 시스템 프리미티브
 └─ screens/         화면 (홈/솔로/생성/참가/대기실/게임선택/플레이/결과)
 
-server/             방 API (DB 접근·권한 검증) — 브라우저에서 import 하지 않는다
+server/             방 API + 카카오 프록시 — 브라우저에서 import 하지 않는다
 worker/             Cloudflare Worker 진입점 (/api 라우팅 + SPA 서빙)
 neon/schema.sql     Neon(Postgres) 스키마
 ```
@@ -281,6 +280,7 @@ export const ladderGame: GameMode<LadderState> = {
 
 ```ts
 interface RestaurantRepository {
+  readonly capabilities: RestaurantCapabilities;  // 이 소스가 실제로 주는 정보
   search(query: RestaurantQuery): Promise<Restaurant[]>;
 }
 ```
@@ -290,6 +290,31 @@ interface RestaurantRepository {
   시드 기반으로 배치합니다(같은 위치 → 항상 같은 결과). 특정 학교/지역에 종속되지 않습니다.
 * AI 판사도 **주어진 후보 안에서만** 고릅니다. 외부 서버가 후보에 없는 식당을 반환하면
   그 응답은 버리고 로컬 판결로 대체합니다 (`HttpJudgeProvider`).
+
+#### 실제 데이터 붙이기 (카카오)
+
+```
+VITE_PLACES_PROVIDER = kakao      ← 빌드 변수
+VITE_API_BASE        = /api       ← 빌드 변수
+KAKAO_REST_API_KEY   = ...        ← 런타임 Secret (VITE_ 금지)
+```
+
+[카카오 개발자센터](https://developers.kakao.com)에서 애플리케이션을 만들고
+**REST API 키**를 발급받아 Worker 의 Secret 으로 넣습니다.
+브라우저는 카카오를 직접 부르지 않습니다 — `/api/places` 를 거치므로 키가 노출되지 않습니다.
+
+**카카오가 주지 않는 것**: 평점, 가격, 영업시간, 사진.
+없는 값을 지어내지 않고 `rating: 0` / `priceRange: 0` / `isOpen: null` 로 두며,
+`capabilities` 를 보고 화면이 해당 항목을 **감춥니다**
+(예산 필터·평점 필터·영업중 토글이 사라지고, 결과 화면 통계가 "걸어서 / 거리" 로 바뀝니다).
+평점·사진·영업시간은 결과의 **"지도에서 보기"** 로 카카오맵 상세 페이지에서 확인합니다.
+
+#### 네이버는 왜 안 쓰나
+
+네이버 지역 검색 API 는 **한 번에 최대 5건**만 반환하고, 좌표+반경 검색이 아니라
+키워드 검색입니다. 음식 배틀은 8강이라 후보가 최소 8곳 필요해서 이 게임에는 맞지 않습니다.
+평점·가격·영업시간을 주지 않는 것은 카카오와 같습니다.
+(네이버 지도 API 는 지도 렌더링·지오코딩용이라 장소 메타데이터 검색과는 다릅니다.)
 
 ---
 
@@ -361,16 +386,16 @@ dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 
 
 ## 아직 목업인 부분
 
-* **식당 데이터** — `fixtures.ts` 의 가상 가게 31곳. 실제 데이터는 `VITE_PLACES_PROVIDER=kakao`
-  또는 다른 `RestaurantRepository` 구현으로 교체합니다.
+* **식당 데이터** — 기본값은 `fixtures.ts` 의 가상 가게 31곳입니다.
+  `VITE_PLACES_PROVIDER=kakao` 로 실제 카카오 데이터를 쓸 수 있습니다(평점·가격·영업시간 제외).
 * **장소/학교 검색** — 내장 대학 좌표 픽스처(근사값). 실제 지오코딩 API 로 교체 가능.
 * **AI 판사** — 결정론적 로컬 판결. `VITE_AI_JUDGE_ENDPOINT` 로 실제 LLM 서버 연결 가능.
 * **지도** — 외부 지도 링크로 이동. 인앱 지도는 아직 없습니다.
 
 ## 다음 단계 추천
 
-1. **실제 Places API 연결** — 카카오 REST 키를 노출하지 않도록 서버 프록시를 두고
-   `RestaurantRepository` 구현만 교체 (평점·가격은 별도 소스 필요).
+1. **평점·가격 보강** — 카카오 로컬 API 에는 없습니다. 필요하면 별도 소스를 붙이거나,
+   사용자가 직접 남기는 평가를 쌓는 방향이 현실적입니다.
 2. **레이트 리밋** — `/api` 에 방 코드/IP 기준 제한을 걸어 무차별 코드 추측을 막기.
 3. **투표 비밀성 서버 강제** — 지금도 서버가 공개 상태만 내려주므로 화면에는 새지 않습니다.
    더 엄격히 하려면 집계를 서버로 옮기면 됩니다.

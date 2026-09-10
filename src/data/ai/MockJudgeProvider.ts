@@ -70,10 +70,11 @@ export function computeVerdict(request: JudgeRequest): JudgeVerdict {
     if (restaurant.priceRange > 0) {
       score += restaurant.priceRange <= budget ? 14 : -18;
     }
-    // 평점 / 거리 / 영업 여부
+    // 평점 / 거리 / 영업 여부 — 모르는 값(0, null)은 가감하지 않는다
     score += restaurant.rating * 4;
     score += Math.max(0, 12 - restaurant.distance / 120);
-    score += restaurant.isOpen ? 8 : -25;
+    if (restaurant.isOpen === true) score += 8;
+    else if (restaurant.isOpen === false) score -= 25;
     // 동점 방지를 위한 결정론적 흔들기
     score += (hashString(restaurant.id) % 100) / 100;
 
@@ -141,9 +142,11 @@ function buildReasons(
 
   reasons.push(`도보 약 ${walkingMinutes(restaurant.distance)}분 거리`);
   reasons.push(
-    restaurant.isOpen
+    restaurant.isOpen === true
       ? `현재 영업 중 · ${CATEGORY_LABEL[restaurant.category]}`
-      : `지금은 영업 종료 · ${CATEGORY_LABEL[restaurant.category]}`,
+      : restaurant.isOpen === false
+        ? `지금은 영업 종료 · ${CATEGORY_LABEL[restaurant.category]}`
+        : CATEGORY_LABEL[restaurant.category],
   );
 
   return reasons;

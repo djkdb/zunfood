@@ -1,11 +1,11 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
 import { Confetti } from '@/components/ui/Confetti';
 import { LoadingDots } from '@/components/ui/ProgressBar';
 import { RestaurantThumb } from '@/components/RestaurantThumb';
 import { Sheet } from '@/components/ui/Sheet';
-import { formatCompactWon, formatWon, formatRating } from '@/lib/format';
+import { formatCompactWon, formatDistance, formatWon, formatRating } from '@/lib/format';
 import { walkingMinutes } from '@/lib/geo';
 import { directionsUrl, mapUrl } from '@/lib/map';
 import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
@@ -44,6 +44,16 @@ export function ResultView({
 }: ResultViewProps) {
   const [revealed, setRevealed] = useState(!teaser);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const stats: { value: string; label: string }[] = [
+    ...(restaurant.rating > 0
+      ? [{ value: formatRating(restaurant.rating), label: '평점' }]
+      : []),
+    { value: `${walkingMinutes(restaurant.distance)}분`, label: '걸어서' },
+    ...(restaurant.priceRange > 0
+      ? [{ value: formatCompactWon(restaurant.priceRange), label: '1인 평균' }]
+      : [{ value: formatDistance(restaurant.distance), label: '거리' }]),
+  ];
 
   useEffect(() => {
     if (!teaser) return;
@@ -109,7 +119,8 @@ export function ResultView({
                 className="mt-1.5 text-body text-white/50"
               >
                 {CATEGORY_LABEL[restaurant.category]}
-                {restaurant.isOpen ? ' · 지금 영업중' : ' · 지금은 영업종료'}
+                {restaurant.isOpen === true && ' · 지금 영업중'}
+                {restaurant.isOpen === false && ' · 지금은 영업종료'}
               </motion.p>
 
               <motion.div
@@ -118,19 +129,13 @@ export function ResultView({
                 transition={{ delay: 0.3 }}
                 className="mt-6 flex w-full items-stretch rounded-xl bg-white/8"
               >
-                <Stat
-                  value={restaurant.rating > 0 ? formatRating(restaurant.rating) : '—'}
-                  label="평점"
-                />
-                <Divider />
-                <Stat value={`${walkingMinutes(restaurant.distance)}분`} label="걸어서" />
-                <Divider />
-                <Stat
-                  value={
-                    restaurant.priceRange > 0 ? formatCompactWon(restaurant.priceRange) : '—'
-                  }
-                  label="1인 평균"
-                />
+                {/* 데이터 소스가 주지 않는 값은 '—' 로 채우지 않고 항목 자체를 뺀다 */}
+                {stats.map((stat, index) => (
+                  <Fragment key={stat.label}>
+                    {index > 0 && <Divider />}
+                    <Stat value={stat.value} label={stat.label} />
+                  </Fragment>
+                ))}
               </motion.div>
 
               <motion.p
@@ -200,7 +205,7 @@ export function ResultView({
                   onClick={() => setMenuOpen(true)}
                   className="h-11 rounded-md px-3.5 text-[14px] font-bold text-white/55 active:bg-white/10"
                 >
-                  메뉴·길찾기
+                  {restaurant.menu.length > 0 ? '메뉴·길찾기' : '길찾기'}
                 </button>
                 {actions.slice(2).map((action) => (
                   <button

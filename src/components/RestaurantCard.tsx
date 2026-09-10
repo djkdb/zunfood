@@ -81,14 +81,17 @@ export function RestaurantCard({
         <p
           className={cn(
             'mt-0.5 text-xs font-bold',
-            restaurant.isOpen
+            restaurant.isOpen === true
               ? 'text-success'
               : surface === 'light'
                 ? 'text-ink-400'
                 : 'text-white/35',
           )}
         >
-          {restaurant.isOpen ? '영업중' : '영업종료'} · 걸어서 {walkingMinutes(restaurant.distance)}분
+          {/* 영업 여부를 모르는 소스도 있다 — 모를 때는 말하지 않는다 */}
+          {restaurant.isOpen === true && '영업중 · '}
+          {restaurant.isOpen === false && '영업종료 · '}
+          걸어서 {walkingMinutes(restaurant.distance)}분
         </p>
       </div>
     </Wrapper>

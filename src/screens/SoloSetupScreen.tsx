@@ -87,7 +87,7 @@ export function SoloSetupScreen() {
             onClick={() => setAdvanced(true)}
             className="h-11 w-full rounded-lg border border-line bg-surface text-sm font-bold text-ink-600 active:bg-ink-50"
           >
-            빼고 싶은 음식 · 영업중만 보기
+            빼고 싶은 음식 고르기
           </button>
         )}
 

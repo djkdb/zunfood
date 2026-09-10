@@ -1,4 +1,5 @@
 import { SEARCH } from '@/config/app';
+import { getRestaurantRepository } from '@/data/restaurants';
 import { ChoiceChip, Segmented } from '@/components/ui/Segmented';
 import { formatRadius } from '@/lib/format';
 import { FOOD_CATEGORIES, type FoodCategory, type RestaurantFilters } from '@/types/restaurant';
@@ -49,6 +50,10 @@ export function ConditionFields({
     });
   };
 
+  // 데이터 소스가 주지 않는 정보(평점·가격·영업시간)는 필터로 걸 수 없다.
+  // 동작하지 않는 조건을 화면에 두지 않는다.
+  const can = getRestaurantRepository().capabilities;
+
   return (
     <div className="space-y-7">
       <Field label="얼마나 멀리?">
@@ -60,14 +65,16 @@ export function ConditionFields({
         />
       </Field>
 
-      <Field label="1인 예산">
-        <Segmented
-          label="1인 예산"
-          value={filters.budget}
-          onChange={(budget) => onFiltersChange({ ...filters, budget })}
-          options={SEARCH.budgetOptions.map((b) => ({ value: b, label: BUDGET_LABEL[b] }))}
-        />
-      </Field>
+      {can.price && (
+        <Field label="1인 예산">
+          <Segmented
+            label="1인 예산"
+            value={filters.budget}
+            onChange={(budget) => onFiltersChange({ ...filters, budget })}
+            options={SEARCH.budgetOptions.map((b) => ({ value: b, label: BUDGET_LABEL[b] }))}
+          />
+        </Field>
+      )}
 
       <Field label="음식" hint={filters.categories.length === 0 ? '고르지 않으면 전체' : undefined}>
         <div className="flex flex-wrap gap-2">
@@ -86,7 +93,7 @@ export function ConditionFields({
 
       {showAdvanced && (
         <>
-          <Field label="오늘은 빼주세요">
+          <Field label="오늘은 빼고 싶어요">
             <div className="flex flex-wrap gap-2">
               {FOOD_CATEGORIES.map((category) => (
                 <ChoiceChip
@@ -101,18 +108,24 @@ export function ConditionFields({
             </div>
           </Field>
 
-          <div className="group-list">
-            <ToggleRow
-              label="지금 영업 중인 곳만"
-              checked={filters.openNowOnly}
-              onChange={(openNowOnly) => onFiltersChange({ ...filters, openNowOnly })}
-            />
-            <ToggleRow
-              label="평점 4.0 이상만"
-              checked={filters.minRating >= 4}
-              onChange={(on) => onFiltersChange({ ...filters, minRating: on ? 4 : 0 })}
-            />
-          </div>
+          {(can.openNow || can.rating) && (
+            <div className="group-list">
+              {can.openNow && (
+                <ToggleRow
+                  label="지금 영업 중인 곳만"
+                  checked={filters.openNowOnly}
+                  onChange={(openNowOnly) => onFiltersChange({ ...filters, openNowOnly })}
+                />
+              )}
+              {can.rating && (
+                <ToggleRow
+                  label="평점 4.0 이상만"
+                  checked={filters.minRating >= 4}
+                  onChange={(on) => onFiltersChange({ ...filters, minRating: on ? 4 : 0 })}
+                />
+              )}
+            </div>
+          )}
         </>
       )}
     </div>

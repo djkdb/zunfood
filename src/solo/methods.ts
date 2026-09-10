@@ -67,9 +67,12 @@ export function pickRestaurant(
     case 'best': {
       const ranked = [...candidates].sort((a, b) => score(b, budget) - score(a, budget));
       const winner = ranked[0];
+      const hasScores = candidates.some((c) => c.rating > 0 || c.priceRange > 0);
       return {
         winner,
-        reason: `예산·거리·평점을 종합하면 여기 (걸어서 ${walkingMinutes(winner.distance)}분)`,
+        reason: hasScores
+          ? `예산·거리·평점을 종합하면 여기 (걸어서 ${walkingMinutes(winner.distance)}분)`
+          : `조건 안에서 가장 가까워요 (걸어서 ${walkingMinutes(winner.distance)}분)`,
       };
     }
 
@@ -91,10 +94,13 @@ export function pickRestaurant(
 }
 
 function score(restaurant: Restaurant, budget: number): number {
+  // 모르는 값(평점 0 / 가격 0 / isOpen null)은 점수에 넣지 않는다.
+  // 데이터가 없는 소스에서는 사실상 거리 기준으로 정렬된다.
   let value = restaurant.rating * 10;
   if (restaurant.priceRange > 0) value += restaurant.priceRange <= budget ? 12 : -14;
   value += Math.max(0, 14 - restaurant.distance / 100);
-  value += restaurant.isOpen ? 10 : -20;
+  if (restaurant.isOpen === true) value += 10;
+  else if (restaurant.isOpen === false) value -= 20;
   return value;
 }
 

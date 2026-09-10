@@ -10,9 +10,8 @@ export const ENV = {
    * 비워두면 같은 기기의 탭끼리만 동기화되는 로컬 모드로 동작한다.
    */
   apiBase: (raw.VITE_API_BASE ?? '').trim(),
-  /** 'mock' | 'kakao' — 식당 데이터 소스 */
+  /** 'mock' | 'kakao' — 식당 데이터 소스. 'kakao' 는 서버 프록시(/api/places)를 쓴다 */
   placesProvider: (raw.VITE_PLACES_PROVIDER ?? 'mock').trim(),
-  kakaoRestApiKey: (raw.VITE_KAKAO_REST_API_KEY ?? '').trim(),
   /** 'mock' | 'http' — AI 판사 제공자 */
   aiJudgeProvider: (raw.VITE_AI_JUDGE_PROVIDER ?? 'mock').trim(),
   /** AI 판결을 대신 호출해주는 서버 엔드포인트 (키는 서버에 보관) */
