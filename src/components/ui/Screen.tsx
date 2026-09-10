@@ -1,58 +1,82 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
+export { IconButton } from './Button';
+
+export type ScreenVariant = 'app' | 'arena';
+
 interface ScreenProps {
   children: ReactNode;
-  /** 배경 연출 */
-  tone?: 'default' | 'game' | 'result';
+  /** 'app' = 밝은 앱 셸, 'arena' = 게임 몰입 화면 */
+  variant?: ScreenVariant;
   className?: string;
 }
 
-const TONES = {
-  default:
-    'bg-[radial-gradient(120%_80%_at_50%_-10%,#1b3a6b_0%,#0f1c3a_45%,#0a1024_100%)]',
-  game: 'bg-[radial-gradient(120%_70%_at_50%_0%,#26306b_0%,#131c3d_50%,#0a1024_100%)]',
-  result:
-    'bg-[radial-gradient(120%_80%_at_50%_-5%,#3a2a6b_0%,#17204a_45%,#0a1024_100%)]',
+const BACKGROUNDS: Record<ScreenVariant, string> = {
+  app: 'bg-paper text-ink-900',
+  arena: 'on-dark bg-arena text-white',
 };
 
-/** 모바일 우선 화면 프레임 (390x844 기준, 데스크톱에서는 가운데 정렬) */
-export function Screen({ children, tone = 'default', className }: ScreenProps) {
+/** 모바일 우선 화면 프레임 */
+export function Screen({ children, variant = 'app', className }: ScreenProps) {
   return (
-    <div className={cn('flex min-h-full w-full flex-col', TONES[tone])}>
-      <div className={cn('app-frame screen-pad', className)}>{children}</div>
+    <div className={cn('flex min-h-full w-full flex-1 flex-col', BACKGROUNDS[variant])}>
+      {variant === 'arena' && (
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 opacity-70"
+          style={{
+            background:
+              'radial-gradient(90% 55% at 50% -8%, rgba(47,107,255,0.28) 0%, rgba(12,19,34,0) 62%)',
+          }}
+        />
+      )}
+      <div className={cn('frame relative', className)}>{children}</div>
     </div>
   );
 }
 
-interface TopBarProps {
+interface AppBarProps {
+  title?: ReactNode;
   left?: ReactNode;
-  center?: ReactNode;
   right?: ReactNode;
+  surface?: ScreenVariant;
+  /** 스크롤해도 상단에 붙어 있게 */
+  sticky?: boolean;
+  className?: string;
 }
 
-export function TopBar({ left, center, right }: TopBarProps) {
+/** 상단 바 — 제목은 가운데, 액션은 양옆 */
+export function AppBar({
+  title,
+  left,
+  right,
+  surface = 'app',
+  sticky = true,
+  className,
+}: AppBarProps) {
   return (
-    <div
-      className="sticky top-0 z-20 -mx-5 flex items-center justify-between gap-2 px-5 py-3 backdrop-blur-md"
-      style={{ paddingTop: 'calc(12px + env(safe-area-inset-top))' }}
+    <header
+      className={cn(
+        'safe-top pad-x z-sticky flex h-[56px] shrink-0 items-center justify-between gap-2 pt-[env(safe-area-inset-top)]',
+        sticky && 'sticky top-0',
+        surface === 'app' ? 'bg-paper/92 backdrop-blur' : 'bg-arena/85 backdrop-blur',
+        className,
+      )}
+      style={{ height: 'calc(56px + env(safe-area-inset-top))' }}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2">{left}</div>
-      <div className="flex shrink-0 items-center">{center}</div>
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-2">{right}</div>
-    </div>
-  );
-}
-
-export function BackButton({ onClick, label = '뒤로' }: { onClick: () => void; label?: string }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-xl text-white active:bg-white/20"
-    >
-      ‹
-    </button>
+      <div className="flex min-w-0 flex-1 items-center gap-1">{left}</div>
+      {title && (
+        <h1
+          className={cn(
+            'shrink-0 text-[15px] font-bold',
+            surface === 'app' ? 'text-ink-900' : 'text-white',
+          )}
+        >
+          {title}
+        </h1>
+      )}
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">{right}</div>
+    </header>
   );
 }

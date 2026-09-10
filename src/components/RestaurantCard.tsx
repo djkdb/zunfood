@@ -1,57 +1,108 @@
-import { CATEGORY_EMOJI, CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
+import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
 import { formatDistance, formatRating, formatWon } from '@/lib/format';
 import { walkingMinutes } from '@/lib/geo';
 import { cn } from '@/lib/cn';
+import { RestaurantThumb } from './RestaurantThumb';
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
-  compact?: boolean;
+  surface?: 'light' | 'dark';
+  onClick?: () => void;
   className?: string;
 }
 
-/** 식당 요약 카드 — 후보 목록/결과 화면에서 공통으로 쓴다. */
-export function RestaurantCard({ restaurant, compact, className }: RestaurantCardProps) {
+/**
+ * 식당 한 줄 카드.
+ * 이름 · 카테고리 · 평점 · 거리 · 가격만 — 정보를 더 넣지 않는다.
+ */
+export function RestaurantCard({
+  restaurant,
+  surface = 'light',
+  onClick,
+  className,
+}: RestaurantCardProps) {
+  const Wrapper = onClick ? 'button' : 'div';
+
   return (
-    <div
+    <Wrapper
+      {...(onClick ? { type: 'button' as const, onClick } : {})}
       className={cn(
-        'flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.05] p-3',
+        'flex w-full items-center gap-3 rounded-xl p-3 text-left',
+        surface === 'light' ? 'bg-surface' : 'bg-white/8',
+        onClick && 'transition-transform active:scale-[0.99]',
         className,
       )}
     >
-      <div
-        className={cn(
-          'flex shrink-0 items-center justify-center rounded-xl bg-white/10',
-          compact ? 'h-11 w-11 text-[20px]' : 'h-14 w-14 text-[26px]',
-        )}
-      >
-        {CATEGORY_EMOJI[restaurant.category]}
-      </div>
+      <RestaurantThumb
+        category={restaurant.category}
+        thumbnail={restaurant.thumbnail}
+        name={restaurant.name}
+        className="h-14 w-14 shrink-0 rounded-md"
+      />
+
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-bold text-white">{restaurant.name}</p>
-        <p className="mt-0.5 truncate text-[13px] text-white/50">
-          {CATEGORY_LABEL[restaurant.category]}
-          {restaurant.rating > 0 && ` · ⭐ ${formatRating(restaurant.rating)}`}
-          {` · 🚶 ${walkingMinutes(restaurant.distance)}분`}
-        </p>
-        {restaurant.priceRange > 0 && (
-          <p className="mt-0.5 truncate text-[13px] font-bold text-pop-300">
-            1인 약 {formatWon(restaurant.priceRange)}
-          </p>
-        )}
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="text-[13px] font-bold text-white/70">
-          {formatDistance(restaurant.distance)}
+        <p
+          className={cn(
+            'truncate text-h3',
+            surface === 'light' ? 'text-ink-900' : 'text-white',
+          )}
+        >
+          {restaurant.name}
         </p>
         <p
           className={cn(
-            'mt-0.5 text-[12px] font-bold',
-            restaurant.isOpen ? 'text-mint' : 'text-white/35',
+            'mt-0.5 flex items-center gap-1.5 text-sm',
+            surface === 'light' ? 'text-muted' : 'text-white/50',
           )}
         >
-          {restaurant.isOpen ? '영업중' : '영업종료'}
+          <span>{CATEGORY_LABEL[restaurant.category]}</span>
+          {restaurant.rating > 0 && (
+            <>
+              <Dot surface={surface} />
+              <span>⭐ {formatRating(restaurant.rating)}</span>
+            </>
+          )}
+          <Dot surface={surface} />
+          <span>{formatDistance(restaurant.distance)}</span>
         </p>
       </div>
-    </div>
+
+      <div className="shrink-0 text-right">
+        {restaurant.priceRange > 0 && (
+          <p
+            className={cn(
+              'text-[14px] font-bold',
+              surface === 'light' ? 'text-ink-800' : 'text-white',
+            )}
+          >
+            {formatWon(restaurant.priceRange)}
+          </p>
+        )}
+        <p
+          className={cn(
+            'mt-0.5 text-xs font-bold',
+            restaurant.isOpen
+              ? 'text-success'
+              : surface === 'light'
+                ? 'text-ink-400'
+                : 'text-white/35',
+          )}
+        >
+          {restaurant.isOpen ? '영업중' : '영업종료'} · 걸어서 {walkingMinutes(restaurant.distance)}분
+        </p>
+      </div>
+    </Wrapper>
+  );
+}
+
+function Dot({ surface }: { surface: 'light' | 'dark' }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'inline-block h-[3px] w-[3px] rounded-full',
+        surface === 'light' ? 'bg-ink-300' : 'bg-white/25',
+      )}
+    />
   );
 }

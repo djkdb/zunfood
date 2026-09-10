@@ -1,0 +1,144 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Sheet } from '@/components/ui/Sheet';
+import { TextField } from '@/components/ui/TextField';
+import { getPlaceRepository, type PlaceSearchResult } from '@/data/places';
+import { useGeolocation } from '@/hooks/useGeolocation';
+import type { PlaceLocation } from '@/types/restaurant';
+
+interface LocationSheetProps {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (location: PlaceLocation) => void;
+}
+
+/**
+ * 위치 선택 시트.
+ * 브라우저 권한 팝업을 갑자기 띄우지 않고, 왜 필요한지 먼저 알려준 뒤 요청한다.
+ */
+export function LocationSheet({ open, onClose, onSelect }: LocationSheetProps) {
+  const [keyword, setKeyword] = useState('');
+  const [results, setResults] = useState<PlaceSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const geo = useGeolocation();
+  const repository = useMemo(() => getPlaceRepository(), []);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setSearching(true);
+
+    const timer = window.setTimeout(async () => {
+      const [campuses, places] = await Promise.all([
+        repository.searchCampuses(keyword),
+        keyword.trim() ? repository.searchPlaces(keyword) : Promise.resolve([]),
+      ]);
+      if (cancelled) return;
+
+      const merged = [...places, ...campuses];
+      const seen = new Set<string>();
+      setResults(
+        merged
+          .filter((place) => {
+            const key = `${place.name}:${place.latitude}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .slice(0, 10),
+      );
+      setSearching(false);
+    }, 160);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [open, keyword, repository]);
+
+  const pick = (location: PlaceLocation) => {
+    onSelect(location);
+    onClose();
+  };
+
+  const useCurrent = async () => {
+    const location = await geo.request();
+    if (location) pick(location);
+  };
+
+  return (
+    <Sheet open={open} onClose={onClose} title="어디서 먹을까요?">
+      {/* 권한을 요청하기 전에 이유를 먼저 말한다 */}
+      <button
+        type="button"
+        onClick={useCurrent}
+        disabled={geo.loading}
+        className="flex w-full items-center gap-3 rounded-xl border border-primary-100 bg-primary-50 p-4 text-left active:bg-primary-100 disabled:opacity-60"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-[19px]">
+          📍
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-h3 text-primary-700">
+            {geo.loading ? '위치 확인 중…' : '현재 위치 사용'}
+          </span>
+          <span className="mt-0.5 block text-sm text-primary-700/70">
+            지금 있는 곳 주변에서 찾아요
+          </span>
+        </span>
+      </button>
+
+      {geo.error && (
+        <div className="mt-3 rounded-lg bg-danger/8 p-3.5">
+          <p className="text-sm font-semibold text-danger">{geo.error}</p>
+          <p className="mt-1 text-sm text-muted">아래에서 장소를 검색해 주세요.</p>
+        </div>
+      )}
+
+      <div className="mt-4">
+        <TextField
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+          placeholder="학교나 장소 검색 (예: 충북대 중문)"
+          aria-label="장소 검색"
+          autoComplete="off"
+        />
+      </div>
+
+      <div className="mt-2 max-h-[38vh] overflow-y-auto no-scrollbar">
+        {searching && results.length === 0 && (
+          <p className="px-1 py-4 text-body text-muted">찾는 중…</p>
+        )}
+        {!searching && results.length === 0 && (
+          <p className="px-1 py-4 text-body text-muted">
+            검색 결과가 없어요. 다른 이름으로 찾아보세요.
+          </p>
+        )}
+        {results.map((place) => (
+          <button
+            key={place.id}
+            type="button"
+            onClick={() => pick(place)}
+            className="flex w-full items-center gap-3 rounded-lg px-1 py-3.5 text-left active:bg-ink-50"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-100 text-[15px]">
+              {place.source === 'campus' ? '🏫' : '📌'}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-body font-bold text-ink-900">
+                {place.name}
+              </span>
+              {place.subtitle && (
+                <span className="block truncate text-sm text-muted">{place.subtitle}</span>
+              )}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <Button variant="ghost" size="md" block className="mt-2" onClick={onClose}>
+        닫기
+      </Button>
+    </Sheet>
+  );
+}

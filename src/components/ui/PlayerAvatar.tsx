@@ -1,56 +1,66 @@
 import { cn } from '@/lib/cn';
 
-const COLORS = [
-  'from-brand-300 to-brand-600',
-  'from-pop-300 to-pop-600',
-  'from-mint to-brand-500',
-  'from-coral to-pop-500',
-  'from-grape to-brand-500',
-  'from-pop-400 to-coral',
-  'from-brand-200 to-mint',
-  'from-grape to-coral',
+/** 참가자마다 다른 동물 얼굴 — 닉네임 이니셜보다 친구끼리 알아보기 쉽다 */
+const FACES = ['🐻', '🐱', '🐶', '🐰', '🐼', '🦊', '🐯', '🐨'];
+const TINTS = [
+  'bg-[#FFE9D6]',
+  'bg-[#E2ECFF]',
+  'bg-[#E4F7E9]',
+  'bg-[#FFE5E9]',
+  'bg-[#EFE7FF]',
+  'bg-[#FFF3D1]',
+  'bg-[#DFF4F6]',
+  'bg-[#F0EFEA]',
 ];
 
+export function faceFor(avatar: number): string {
+  return FACES[avatar % FACES.length];
+}
+
 interface PlayerAvatarProps {
-  nickname: string;
   avatar: number;
   isHost?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  /** 아직 준비/투표하지 않은 상태 */
   dim?: boolean;
+  surface?: 'light' | 'dark';
   className?: string;
 }
 
 const SIZES = {
-  sm: 'h-9 w-9 text-[14px]',
-  md: 'h-12 w-12 text-[18px]',
-  lg: 'h-16 w-16 text-[24px]',
+  sm: 'h-8 w-8 text-[16px] rounded-[10px]',
+  md: 'h-11 w-11 text-[22px] rounded-md',
+  lg: 'h-16 w-16 text-[32px] rounded-xl',
 };
 
 export function PlayerAvatar({
-  nickname,
   avatar,
   isHost,
   size = 'md',
   dim,
+  surface = 'light',
   className,
 }: PlayerAvatarProps) {
   return (
-    <div className={cn('relative shrink-0', className)}>
-      <div
+    <span className={cn('relative inline-flex shrink-0', className)}>
+      <span
         className={cn(
-          'flex items-center justify-center rounded-2xl bg-gradient-to-br font-black text-navy-950',
+          'flex items-center justify-center',
           SIZES[size],
-          COLORS[avatar % COLORS.length],
-          dim && 'opacity-35 grayscale',
+          surface === 'light' ? TINTS[avatar % TINTS.length] : 'bg-white/12',
+          dim && 'opacity-35 saturate-50',
         )}
       >
-        {nickname.slice(0, 2)}
-      </div>
+        {faceFor(avatar)}
+      </span>
       {isHost && (
-        <span className="absolute -right-1.5 -top-2 text-[15px] drop-shadow" aria-label="방장">
+        <span
+          className="absolute -right-1 -top-1.5 text-[13px] leading-none drop-shadow-sm"
+          aria-hidden
+        >
           👑
         </span>
       )}
-    </div>
+    </span>
   );
 }

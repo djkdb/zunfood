@@ -14,3 +14,12 @@ export function formatRadius(meters: number): string {
 export function formatRating(rating: number): string {
   return rating.toFixed(1);
 }
+
+/** 좁은 자리에 넣는 금액 표기 — 12,000 → "1.2만" */
+export function formatCompactWon(value: number): string {
+  if (value >= 10_000) {
+    const man = (value / 10_000).toFixed(1).replace(/\.0$/, '');
+    return `${man}만원`;
+  }
+  return `${Math.round(value / 1_000)}천원`;
+}

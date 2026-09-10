@@ -1,21 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ROOM } from '@/config/app';
-import { Banner } from '@/components/ui/Banner';
-import { Button } from '@/components/ui/Button';
-import { Screen, TopBar } from '@/components/ui/Screen';
+import { Button, IconButton } from '@/components/ui/Button';
+import { AppBar, Screen } from '@/components/ui/Screen';
 import { Sheet } from '@/components/ui/Sheet';
+import { StatusView } from '@/components/ui/StatusView';
+import { LoadingDots } from '@/components/ui/ProgressBar';
 import { normalizeRoomCode } from '@/lib/id';
-import {
-  selectEnvelope,
-  selectIsHost,
-  selectMe,
-  useRoomStore,
-} from '@/store/roomStore';
+import { selectEnvelope, selectIsHost, selectMe, useRoomStore } from '@/store/roomStore';
+import { toast } from '@/store/toastStore';
 import { LobbyScreen } from './LobbyScreen';
 import { GameSelectScreen } from './GameSelectScreen';
 import { PlayScreen } from './PlayScreen';
-import { ResultScreen } from './ResultScreen';
+import { RoomResultScreen } from './RoomResultScreen';
 
 type Phase = 'loading' | 'ready' | 'missing';
 
@@ -61,7 +58,13 @@ export function RoomScreen() {
     };
   }, [code, attach, detach, navigate]);
 
-  /** 접속 중인 참가자만 게임에 참여한 것으로 본다. */
+  // 오류는 배너 대신 토스트로 — 화면 레이아웃을 밀지 않는다
+  useEffect(() => {
+    if (!error) return;
+    toast(error, { tone: 'error' });
+    setError(null);
+  }, [error, setError]);
+
   const players = useMemo(() => {
     if (!snapshot) return [];
     const now = Date.now();
@@ -71,12 +74,18 @@ export function RoomScreen() {
     return online.length > 0 ? online : snapshot.players;
   }, [snapshot, me?.id]);
 
+  const exitRoom = async () => {
+    setLeaveOpen(false);
+    await leave();
+    navigate('/', { replace: true });
+  };
+
   if (phase === 'loading') {
     return (
       <Screen>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-white/20 border-t-white" />
-          <p className="text-[15px] font-bold text-white/55">방에 들어가는 중…</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-5">
+          <p className="text-h2 text-ink-900">방에 들어가는 중</p>
+          <LoadingDots />
         </div>
       </Screen>
     );
@@ -85,65 +94,53 @@ export function RoomScreen() {
   if (phase === 'missing' || !snapshot || !me) {
     return (
       <Screen>
-        <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-          <span className="text-[52px]">🚪</span>
-          <div>
-            <h1 className="text-[22px] font-black">방에 들어갈 수 없어요</h1>
-            <p className="mt-2 text-[15px] leading-relaxed text-white/55">
-              방이 사라졌거나, 아직 참가하지 않은 방이에요.
-              <br />
-              방 코드로 다시 입장해 주세요.
-            </p>
-          </div>
-          <div className="w-full space-y-2">
-            <Button variant="pop" block onClick={() => navigate(`/join/${code}`)}>
-              방 코드로 참가하기
-            </Button>
-            <Button variant="ghost" size="md" block onClick={() => navigate('/')}>
-              처음으로
-            </Button>
-          </div>
+        <div className="pad-x flex flex-1 flex-col">
+          <StatusView
+            emoji="🚪"
+            title="방에 들어갈 수 없어요"
+            description="방이 사라졌거나, 아직 참가하지 않은 방이에요."
+            action={{ label: '코드로 참가하기', onClick: () => navigate(`/join/${code}`) }}
+            secondaryAction={{ label: '처음으로', onClick: () => navigate('/') }}
+          />
         </div>
       </Screen>
     );
   }
 
   const { room } = snapshot;
-  const expired = room.expiresAt < Date.now();
-  const tone = room.status === 'finished' ? 'result' : room.status === 'playing' ? 'game' : 'default';
+  const playing = room.status === 'playing';
+  const finished = room.status === 'finished';
+  const immersive = playing || finished;
 
   return (
-    <Screen tone={tone}>
-      <TopBar
-        left={
-          <button
-            type="button"
-            onClick={() => setLeaveOpen(true)}
-            className="flex h-10 items-center gap-1.5 rounded-full bg-white/10 px-3 text-[13px] font-bold active:bg-white/20"
-          >
-            나가기
-          </button>
-        }
-        center={
-          <span className="rounded-full bg-white/10 px-3 py-1.5 text-[13px] font-black tracking-[0.2em]">
-            {room.code}
-          </span>
-        }
-        right={
-          <span className="flex items-center gap-1.5 text-[12px] font-bold text-white/45">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                status === 'online' ? 'bg-mint' : status === 'connecting' ? 'bg-pop-400' : 'bg-coral'
-              }`}
-            />
-            {status === 'online' ? '실시간' : status === 'connecting' ? '연결 중' : '연결 끊김'}
-          </span>
-        }
-      />
-
-      <Banner message={error} onClose={() => setError(null)} />
-      {expired && (
-        <Banner message="이 방은 만료됐어요. 새 방을 만들어 주세요." tone="error" />
+    <Screen variant={immersive ? 'arena' : 'app'}>
+      {!immersive && (
+        <AppBar
+          left={
+            <IconButton label="방 나가기" onClick={() => setLeaveOpen(true)}>
+              ‹
+            </IconButton>
+          }
+          title={
+            <span className="rounded-full bg-ink-100 px-2.5 py-1 text-[13px] font-extrabold tracking-[0.14em] text-ink-700">
+              {room.code}
+            </span>
+          }
+          right={
+            <span className="flex items-center gap-1.5 pr-1 text-xs font-bold text-ink-400">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  status === 'online'
+                    ? 'bg-success'
+                    : status === 'connecting'
+                      ? 'bg-warning'
+                      : 'bg-danger'
+                }`}
+              />
+              {status === 'online' ? '실시간' : status === 'connecting' ? '연결 중' : '연결 끊김'}
+            </span>
+          }
+        />
       )}
 
       {room.status === 'lobby' && (
@@ -152,29 +149,42 @@ export function RoomScreen() {
       {room.status === 'selecting' && (
         <GameSelectScreen room={room} players={players} isHost={isHost} />
       )}
-      {room.status === 'playing' && (
-        <PlayScreen room={room} players={players} me={me} isHost={isHost} envelope={envelope} />
+      {playing && (
+        <PlayScreen
+          room={room}
+          players={players}
+          me={me}
+          isHost={isHost}
+          envelope={envelope}
+          onExit={() => setLeaveOpen(true)}
+        />
       )}
-      {room.status === 'finished' && (
-        <ResultScreen room={room} players={players} isHost={isHost} />
+      {finished && <RoomResultScreen room={room} players={players} isHost={isHost} />}
+
+      {finished && (
+        <div className="pad-x pb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            surface="dark"
+            block
+            onClick={() => setLeaveOpen(true)}
+          >
+            방 나가기
+          </Button>
+        </div>
       )}
 
-      <Sheet open={leaveOpen} onClose={() => setLeaveOpen(false)} title="방에서 나갈까요?">
-        <p className="mb-5 text-center text-[14px] leading-relaxed text-white/55">
-          {isHost
-            ? '방장이 나가면 다음 사람에게 방장이 넘어가요.'
-            : '나가면 진행 중인 게임에서 빠지게 돼요.'}
-        </p>
+      <Sheet
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        title="방에서 나갈까요?"
+        description={
+          isHost ? '방장이 나가면 다음 사람이 방장이 돼요.' : '진행 중인 게임에서 빠지게 돼요.'
+        }
+      >
         <div className="space-y-2">
-          <Button
-            variant="danger"
-            block
-            onClick={async () => {
-              setLeaveOpen(false);
-              await leave();
-              navigate('/', { replace: true });
-            }}
-          >
+          <Button variant="danger" block onClick={exitRoom}>
             나가기
           </Button>
           <Button variant="ghost" size="md" block onClick={() => setLeaveOpen(false)}>

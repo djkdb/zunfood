@@ -4,8 +4,13 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
-    --app-bg: #0a1024;
+    color-scheme: light;
+    /* 화면 문맥에 따라 바뀌는 배경 — Screen 컴포넌트가 설정한다 */
+    --app-bg: #f6f7f9;
+  }
+
+  html {
+    background: var(--app-bg);
   }
 
   html,
@@ -14,16 +19,22 @@
     height: 100%;
   }
 
+  /* 화면이 항상 뷰포트 높이를 채우도록 flex 사슬을 끊기지 않게 유지한다 */
+  #root {
+    display: flex;
+    flex-direction: column;
+  }
+
   body {
     margin: 0;
     background: var(--app-bg);
-    color: #f7fafc;
+    color: #101828;
+    font-size: 15px;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
   }
 
-  /* 모바일에서 더블탭 확대 / 버튼 하이라이트 제거 */
   button,
   a {
     -webkit-tap-highlight-color: transparent;
@@ -36,6 +47,16 @@
     font-size: 16px; /* iOS 자동 확대 방지 */
   }
 
+  /* 키보드 사용자에게만 보이는 포커스 링 */
+  :focus-visible {
+    outline: 2px solid #2f6bff;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .on-dark :focus-visible {
+    outline-color: #ff9440;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -43,47 +64,42 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
   }
 }
 
 @layer components {
-  /* 앱 전체를 감싸는 모바일 우선 프레임 (390x844 기준) */
-  .app-frame {
-    @apply mx-auto flex w-full max-w-[430px] flex-1 flex-col;
+  /* 모바일 우선 프레임 — 390x844 기준, 넓은 화면에서는 가운데 정렬 */
+  .frame {
+    @apply mx-auto flex w-full max-w-[440px] flex-1 flex-col;
   }
 
-  .screen-pad {
+  .pad-x {
     padding-left: 20px;
     padding-right: 20px;
+  }
+
+  .pad-bottom {
     padding-bottom: calc(24px + env(safe-area-inset-bottom));
   }
 
-  .glass {
-    @apply border border-white/10 bg-white/[0.06] backdrop-blur-xl;
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
   }
 
-  .text-shadow-pop {
-    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  /* 하단 고정 액션 바 */
+  .action-bar {
+    @apply fixed inset-x-0 bottom-0 z-sticky mx-auto w-full max-w-[440px];
+    padding: 12px 20px calc(14px + env(safe-area-inset-bottom));
   }
 
-  .stripe-bg {
-    background-image: repeating-linear-gradient(
-      -45deg,
-      rgba(255, 255, 255, 0.06) 0px,
-      rgba(255, 255, 255, 0.06) 10px,
-      transparent 10px,
-      transparent 20px
-    );
+  /* 목록형 그룹 — "모든 걸 카드로 감싸는" 대신 구분선으로 묶는다 */
+  .group-list {
+    @apply overflow-hidden rounded-xl border border-line bg-surface;
   }
-
-  .shimmer-text {
-    background: linear-gradient(90deg, #ffd75e 0%, #fff 30%, #ffd75e 60%, #fff 100%);
-    background-size: 200% auto;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    @apply animate-shimmer;
+  .group-list > * + * {
+    border-top: 1px solid #eff2f6;
   }
 
   .no-scrollbar::-webkit-scrollbar {
@@ -92,5 +108,22 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  /* 가로 스크롤 영역이 화면 가장자리까지 흐르게 */
+  .bleed-x {
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .skeleton {
+    @apply relative overflow-hidden bg-ink-100;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 animate-sheen;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
   }
 }

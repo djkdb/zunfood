@@ -42,8 +42,12 @@ export interface GameMode<S = unknown> {
   tagline: string;
   description: string;
   emoji: string;
-  /** 카드 배경 그라디언트 (tailwind class) */
-  accent: string;
+  /** 게임 카드 아이콘 배경 (tailwind class) */
+  tint: string;
+  /** 시작 전 미리보기에 쓰는 3줄 요약 */
+  howTo: string[];
+  /** 목록에서 하나만 "추천"으로 강조한다 */
+  recommended?: boolean;
   minPlayers: number;
   maxPlayers: number;
   /** 이 게임이 필요로 하는 후보 식당 수 */
