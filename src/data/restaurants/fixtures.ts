@@ -1,0 +1,438 @@
+import type { FoodCategory, MenuItem } from '@/types/restaurant';
+
+/**
+ * ⚠️ 데모용 가상 식당 템플릿입니다.
+ *
+ * 여기에 있는 이름/메뉴/평점은 실제 존재하는 가게가 아니라, 실제 Places API 를
+ * 붙이기 전까지 게임 흐름을 검증하기 위한 고정 픽스처입니다.
+ * 런타임에서 이름이나 좌표를 새로 "생성"하지 않고, 이 목록에서만 가져옵니다.
+ * 실제 데이터는 `KakaoRestaurantRepository` 같은 구현체로 교체하세요.
+ */
+export interface RestaurantTemplate {
+  key: string;
+  name: string;
+  category: FoodCategory;
+  rating: number;
+  priceRange: number;
+  menu: MenuItem[];
+  tags: string[];
+  /** 24시간 기준 영업 시간대 [open, close) */
+  hours: [number, number];
+}
+
+export const RESTAURANT_TEMPLATES: RestaurantTemplate[] = [
+  {
+    key: 'k-gukbap',
+    name: '하루한끼 국밥',
+    category: 'korean',
+    rating: 4.5,
+    priceRange: 9000,
+    menu: [
+      { name: '돼지국밥', price: 9000 },
+      { name: '수육백반', price: 12000 },
+      { name: '순대국밥', price: 9500 },
+    ],
+    tags: ['혼밥', '해장', '빠른식사'],
+    hours: [8, 22],
+  },
+  {
+    key: 'k-baekban',
+    name: '엄마손 백반집',
+    category: 'korean',
+    rating: 4.3,
+    priceRange: 8500,
+    menu: [
+      { name: '제육백반', price: 9000 },
+      { name: '고등어구이', price: 10000 },
+      { name: '된장찌개', price: 8000 },
+    ],
+    tags: ['가성비', '집밥', '반찬무한'],
+    hours: [10, 21],
+  },
+  {
+    key: 'k-kimchijjigae',
+    name: '묵은지 김치찌개',
+    category: 'korean',
+    rating: 4.6,
+    priceRange: 10000,
+    menu: [
+      { name: '김치찌개', price: 10000 },
+      { name: '계란말이', price: 6000 },
+    ],
+    tags: ['찌개', '2인이상', '점심추천'],
+    hours: [11, 22],
+  },
+  {
+    key: 'k-bibim',
+    name: '한그릇 비빔밥',
+    category: 'korean',
+    rating: 4.1,
+    priceRange: 9500,
+    menu: [
+      { name: '전주식 비빔밥', price: 9500 },
+      { name: '돌솥비빔밥', price: 11000 },
+    ],
+    tags: ['건강한', '혼밥', '빠른식사'],
+    hours: [10, 21],
+  },
+  {
+    key: 'c-jjajang',
+    name: '홍룡각',
+    category: 'chinese',
+    rating: 4.2,
+    priceRange: 8000,
+    menu: [
+      { name: '짜장면', price: 7000 },
+      { name: '짬뽕', price: 9000 },
+      { name: '탕수육(소)', price: 17000 },
+    ],
+    tags: ['중식', '배달가능', '단체'],
+    hours: [11, 21],
+  },
+  {
+    key: 'c-mala',
+    name: '마라공방',
+    category: 'chinese',
+    rating: 4.7,
+    priceRange: 14000,
+    menu: [
+      { name: '마라탕', price: 12000 },
+      { name: '마라샹궈', price: 19000 },
+      { name: '꿔바로우', price: 16000 },
+    ],
+    tags: ['마라', '매운맛', '요즘핫함'],
+    hours: [11, 23],
+  },
+  {
+    key: 'c-yangkkochi',
+    name: '불꽃양꼬치',
+    category: 'chinese',
+    rating: 4.4,
+    priceRange: 18000,
+    menu: [
+      { name: '양꼬치 10꼬치', price: 18000 },
+      { name: '꿔바로우', price: 17000 },
+    ],
+    tags: ['술안주', '단체', '저녁'],
+    hours: [16, 24],
+  },
+  {
+    key: 'j-donkatsu',
+    name: '가츠공방',
+    category: 'japanese',
+    rating: 4.6,
+    priceRange: 12000,
+    menu: [
+      { name: '등심 돈카츠', price: 12000 },
+      { name: '치즈카츠', price: 14000 },
+      { name: '카츠동', price: 11000 },
+    ],
+    tags: ['돈카츠', '혼밥', '줄서는집'],
+    hours: [11, 21],
+  },
+  {
+    key: 'j-ramen',
+    name: '멘야 사계',
+    category: 'japanese',
+    rating: 4.5,
+    priceRange: 11000,
+    menu: [
+      { name: '돈코츠라멘', price: 11000 },
+      { name: '차슈덮밥', price: 8000 },
+    ],
+    tags: ['라멘', '국물', '비오는날'],
+    hours: [11, 22],
+  },
+  {
+    key: 'j-sushi',
+    name: '스시 하나로',
+    category: 'japanese',
+    rating: 4.8,
+    priceRange: 22000,
+    menu: [
+      { name: '점심 초밥 세트', price: 18000 },
+      { name: '모둠초밥', price: 26000 },
+    ],
+    tags: ['초밥', '데이트', '특별한날'],
+    hours: [11, 21],
+  },
+  {
+    key: 'j-udon',
+    name: '우동상회',
+    category: 'japanese',
+    rating: 4.2,
+    priceRange: 9000,
+    menu: [
+      { name: '가케우동', price: 8000 },
+      { name: '붓카케 우동', price: 9500 },
+    ],
+    tags: ['면요리', '가성비', '혼밥'],
+    hours: [10, 21],
+  },
+  {
+    key: 'w-pasta',
+    name: '파스타 다이닝 노을',
+    category: 'western',
+    rating: 4.4,
+    priceRange: 16000,
+    menu: [
+      { name: '로제 파스타', price: 16000 },
+      { name: '트러플 크림 파스타', price: 19000 },
+      { name: '마르게리따 피자', price: 18000 },
+    ],
+    tags: ['데이트', '분위기', '와인'],
+    hours: [11, 22],
+  },
+  {
+    key: 'w-burger',
+    name: '스매시 버거바',
+    category: 'western',
+    rating: 4.5,
+    priceRange: 13000,
+    menu: [
+      { name: '스매시 치즈버거', price: 11000 },
+      { name: '베이컨 더블버거', price: 15000 },
+    ],
+    tags: ['수제버거', '빠른식사', '테이크아웃'],
+    hours: [11, 22],
+  },
+  {
+    key: 'w-pizza',
+    name: '화덕피자 오븐',
+    category: 'western',
+    rating: 4.3,
+    priceRange: 17000,
+    menu: [
+      { name: '고르곤졸라 피자', price: 17000 },
+      { name: '페퍼로니 피자', price: 19000 },
+    ],
+    tags: ['피자', '단체', '나눠먹기'],
+    hours: [11, 23],
+  },
+  {
+    key: 'w-steak',
+    name: '스테이크 랩',
+    category: 'western',
+    rating: 4.6,
+    priceRange: 26000,
+    menu: [
+      { name: '채끝 스테이크', price: 29000 },
+      { name: '스테이크 덮밥', price: 15000 },
+    ],
+    tags: ['스테이크', '특별한날', '회식'],
+    hours: [12, 22],
+  },
+  {
+    key: 'ch-fried',
+    name: '오늘의 치킨',
+    category: 'chicken',
+    rating: 4.5,
+    priceRange: 20000,
+    menu: [
+      { name: '후라이드 한마리', price: 19000 },
+      { name: '양념치킨', price: 21000 },
+      { name: '반반치킨', price: 21000 },
+    ],
+    tags: ['치맥', '단체', '배달가능'],
+    hours: [15, 26],
+  },
+  {
+    key: 'ch-ganjang',
+    name: '간장치킨 연구소',
+    category: 'chicken',
+    rating: 4.6,
+    priceRange: 21000,
+    menu: [
+      { name: '간장마늘치킨', price: 21000 },
+      { name: '순살 간장치킨', price: 23000 },
+    ],
+    tags: ['간장', '단짠', '야식'],
+    hours: [16, 25],
+  },
+  {
+    key: 'ch-dakgalbi',
+    name: '철판 닭갈비',
+    category: 'chicken',
+    rating: 4.7,
+    priceRange: 15000,
+    menu: [
+      { name: '닭갈비 2인', price: 28000 },
+      { name: '볶음밥 추가', price: 3000 },
+      { name: '치즈사리', price: 4000 },
+    ],
+    tags: ['철판', '단체', '볶음밥필수'],
+    hours: [11, 23],
+  },
+  {
+    key: 's-tteokbokki',
+    name: '분식왕 떡볶이',
+    category: 'snack',
+    rating: 4.3,
+    priceRange: 7000,
+    menu: [
+      { name: '로제떡볶이', price: 8000 },
+      { name: '튀김 세트', price: 6000 },
+      { name: '순대', price: 5000 },
+    ],
+    tags: ['분식', '가성비', '매운맛'],
+    hours: [10, 22],
+  },
+  {
+    key: 's-kimbap',
+    name: '골목 김밥천국',
+    category: 'snack',
+    rating: 4.0,
+    priceRange: 6000,
+    menu: [
+      { name: '참치김밥', price: 4500 },
+      { name: '라볶이', price: 6500 },
+      { name: '돈까스', price: 8000 },
+    ],
+    tags: ['24시', '혼밥', '가성비'],
+    hours: [0, 24],
+  },
+  {
+    key: 's-toast',
+    name: '아침토스트 스탠드',
+    category: 'snack',
+    rating: 4.1,
+    priceRange: 5000,
+    menu: [
+      { name: '햄치즈 토스트', price: 4500 },
+      { name: '감자 토스트', price: 5000 },
+    ],
+    tags: ['아침', '테이크아웃', '가성비'],
+    hours: [7, 15],
+  },
+  {
+    key: 'm-samgyeop',
+    name: '연탄불 삼겹살',
+    category: 'meat',
+    rating: 4.7,
+    priceRange: 16000,
+    menu: [
+      { name: '생삼겹살 (150g)', price: 15000 },
+      { name: '목살 (150g)', price: 15000 },
+      { name: '된장찌개', price: 3000 },
+    ],
+    tags: ['고기', '회식', '소주'],
+    hours: [16, 24],
+  },
+  {
+    key: 'm-galbi',
+    name: '왕갈비 한상',
+    category: 'meat',
+    rating: 4.6,
+    priceRange: 24000,
+    menu: [
+      { name: '돼지갈비 2인', price: 34000 },
+      { name: '냉면', price: 8000 },
+    ],
+    tags: ['갈비', '단체', '가족'],
+    hours: [11, 23],
+  },
+  {
+    key: 'm-gopchang',
+    name: '곱창연가',
+    category: 'meat',
+    rating: 4.4,
+    priceRange: 22000,
+    menu: [
+      { name: '모둠곱창', price: 24000 },
+      { name: '막창', price: 22000 },
+    ],
+    tags: ['곱창', '술안주', '저녁'],
+    hours: [17, 25],
+  },
+  {
+    key: 'm-jokbal',
+    name: '족발야시장',
+    category: 'meat',
+    rating: 4.4,
+    priceRange: 19000,
+    menu: [
+      { name: '족발 중', price: 32000 },
+      { name: '보쌈 중', price: 30000 },
+    ],
+    tags: ['야식', '단체', '배달가능'],
+    hours: [15, 26],
+  },
+  {
+    key: 'cafe-brunch',
+    name: '데일리 브런치',
+    category: 'cafe',
+    rating: 4.4,
+    priceRange: 13000,
+    menu: [
+      { name: '에그베네딕트', price: 14000 },
+      { name: '아메리카노', price: 4500 },
+    ],
+    tags: ['브런치', '카공', '분위기'],
+    hours: [9, 21],
+  },
+  {
+    key: 'cafe-dessert',
+    name: '한줌 디저트',
+    category: 'cafe',
+    rating: 4.5,
+    priceRange: 8000,
+    menu: [
+      { name: '바스크 치즈케이크', price: 7500 },
+      { name: '수제 라떼', price: 5500 },
+    ],
+    tags: ['디저트', '커피', '테이크아웃'],
+    hours: [10, 22],
+  },
+  {
+    key: 'e-ssalguksu',
+    name: '쌀국수 사이공',
+    category: 'etc',
+    rating: 4.4,
+    priceRange: 11000,
+    menu: [
+      { name: '소고기 쌀국수', price: 11000 },
+      { name: '분짜', price: 13000 },
+    ],
+    tags: ['아시안', '국물', '해장'],
+    hours: [11, 21],
+  },
+  {
+    key: 'e-kebab',
+    name: '이스탄불 케밥',
+    category: 'etc',
+    rating: 4.2,
+    priceRange: 9000,
+    menu: [
+      { name: '치킨 케밥', price: 8500 },
+      { name: '케밥 플레이트', price: 13000 },
+    ],
+    tags: ['테이크아웃', '이색적', '빠른식사'],
+    hours: [11, 23],
+  },
+  {
+    key: 'e-curry',
+    name: '커리하우스 마살라',
+    category: 'etc',
+    rating: 4.3,
+    priceRange: 14000,
+    menu: [
+      { name: '버터치킨 커리', price: 14000 },
+      { name: '난 세트', price: 4000 },
+    ],
+    tags: ['커리', '이색적', '데이트'],
+    hours: [11, 22],
+  },
+  {
+    key: 'e-salad',
+    name: '그린볼 샐러드',
+    category: 'etc',
+    rating: 4.1,
+    priceRange: 12000,
+    menu: [
+      { name: '치킨 샐러드볼', price: 12000 },
+      { name: '연어 포케', price: 14000 },
+    ],
+    tags: ['건강한', '다이어트', '가벼운'],
+    hours: [10, 21],
+  },
+];

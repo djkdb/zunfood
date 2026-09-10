@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    --app-bg: #0a1024;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--app-bg);
+    color: #f7fafc;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overscroll-behavior-y: none;
+  }
+
+  /* 모바일에서 더블탭 확대 / 버튼 하이라이트 제거 */
+  button,
+  a {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px; /* iOS 자동 확대 방지 */
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* 앱 전체를 감싸는 모바일 우선 프레임 (390x844 기준) */
+  .app-frame {
+    @apply mx-auto flex w-full max-w-[430px] flex-1 flex-col;
+  }
+
+  .screen-pad {
+    padding-left: 20px;
+    padding-right: 20px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .glass {
+    @apply border border-white/10 bg-white/[0.06] backdrop-blur-xl;
+  }
+
+  .text-shadow-pop {
+    text-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  }
+
+  .stripe-bg {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 10px,
+      transparent 10px,
+      transparent 20px
+    );
+  }
+
+  .shimmer-text {
+    background: linear-gradient(90deg, #ffd75e 0%, #fff 30%, #ffd75e 60%, #fff 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    @apply animate-shimmer;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
