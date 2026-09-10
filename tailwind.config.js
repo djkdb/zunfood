@@ -58,6 +58,7 @@ export default {
         danger: '#F04438',
       },
       fontFamily: {
+        // Pretendard 가 뜨기 전/실패 시에도 한글이 깨지지 않도록 OS 기본 한글 서체까지 깔아둔다
         sans: [
           'Pretendard Variable',
           'Pretendard',
@@ -65,8 +66,9 @@ export default {
           'BlinkMacSystemFont',
           'system-ui',
           'Apple SD Gothic Neo',
-          'Roboto',
+          'Malgun Gothic',
           'Noto Sans KR',
+          'Roboto',
           'sans-serif',
         ],
       },

@@ -216,6 +216,13 @@ interface RestaurantRepository {
 * QR·컨페티 라이브러리는 실제로 쓰이는 순간 동적 로드
 * react / framer-motion / supabase 는 벤더 청크로 분리해 캐시 유지
 
+### 서체
+
+Pretendard 를 **번들에 포함**해서 제공합니다(CDN 의존 없음).
+외부 CDN 이 막히거나 느리면 서비스 전체가 다른 폰트로 보이기 때문입니다.
+dynamic subset 이라 92개 조각 중 화면에 실제로 쓰인 글자가 든 것만 내려받습니다
+(첫 화면 기준 11개 / 약 25KB).
+
 ---
 
 ## 아직 목업인 부분
@@ -244,4 +251,4 @@ interface RestaurantRepository {
 ## 기술 스택
 
 React 18 · TypeScript · Vite 5 · Tailwind CSS 3 · Zustand · Framer Motion ·
-Supabase(Postgres + Realtime) · qrcode · canvas-confetti
+Supabase(Postgres + Realtime) · Pretendard · qrcode · canvas-confetti
