@@ -104,8 +104,8 @@ VITE_API_BASE = /api
 NODE_VERSION  = 22
 ```
 
-그리고 **Settings → Functions → Environment variables** 에서 `DATABASE_URL` 을
-**Secret(암호화)** 으로 추가합니다. `VITE_` 를 붙이면 브라우저에 노출되니 절대 붙이지 마세요.
+그리고 같은 화면에서 `DATABASE_URL` 을 **Encrypt(Secret)** 로 추가합니다.
+`VITE_` 를 붙이면 브라우저에 노출되니 절대 붙이지 마세요.
 
 ```
 DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require   ← Secret
