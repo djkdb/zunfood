@@ -286,3 +286,100 @@ function json(body: unknown, status: number, extra: Record<string, string> = {})
     headers: { 'content-type': 'application/json; charset=utf-8', ...extra },
   });
 }
+
+/* ------------------------------------------------------------------ *
+ * 설정 진단
+ * ------------------------------------------------------------------ */
+
+export interface ProbeResult {
+  ok: boolean;
+  /** 카카오가 돌려준 HTTP 상태. 0 이면 요청 자체가 나가지 못한 것 */
+  status: number;
+  /** 카카오 응답 본문 일부. 키가 섞여 나올 경우를 대비해 가려서 넣는다 */
+  message?: string;
+  /** 사람이 읽고 바로 조치할 수 있는 설명 */
+  diagnosis: string;
+}
+
+/**
+ * 설정된 카카오 키로 실제 호출을 한 번 넣어보고 결과를 알려준다.
+ *
+ * "키가 있다/없다"만으로는 원인을 못 가린다. 키가 Worker 에 들어와 있어도
+ * 앱에서 카카오맵을 켜지 않았거나, 다른 앱의 키를 넣었거나, 한도를 다 썼을 수 있다.
+ * 셋은 조치가 전혀 다르므로 카카오가 실제로 뭐라고 하는지 그대로 확인한다.
+ *
+ * 키 값은 어떤 경우에도 응답에 담기지 않는다.
+ */
+export async function probeKakao(apiKey: string): Promise<ProbeResult> {
+  // 가장 싼 요청 — 한 건만 받아온다 (좌표는 서울 시청, 결과 유무는 상관없다)
+  const url = new URL(ENDPOINT);
+  url.searchParams.set('category_group_code', 'FD6');
+  url.searchParams.set('x', '126.9780');
+  url.searchParams.set('y', '37.5665');
+  url.searchParams.set('radius', '500');
+  url.searchParams.set('size', '1');
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      headers: { Authorization: `KakaoAK ${apiKey}` },
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      diagnosis: 'Worker 에서 dapi.kakao.com 에 연결하지 못했습니다.',
+    };
+  }
+
+  const raw = await response.text().catch(() => '');
+  const body = redact(raw, apiKey).slice(0, 300);
+
+  if (response.ok) {
+    let found = 0;
+    try {
+      found = (JSON.parse(raw) as { documents?: unknown[] }).documents?.length ?? 0;
+    } catch {
+      // 건수는 참고용이라 못 읽어도 넘어간다
+    }
+    return {
+      ok: true,
+      status: 200,
+      diagnosis: `카카오 키가 정상 동작합니다 (시청 주변 ${found}건 응답).`,
+    };
+  }
+
+  return {
+    ok: false,
+    status: response.status,
+    message: body,
+    diagnosis: diagnoseKakao(response.status, body),
+  };
+}
+
+/** 카카오 거부 사유 → 카카오 개발자 콘솔에서 할 일 */
+function diagnoseKakao(status: number, body: string): string {
+  if (
+    status === 429 ||
+    body.includes('"code":-10') ||
+    body.includes('limit has been exceeded') ||
+    body.includes('quota')
+  ) {
+    return '키는 정상인데 오늘 호출 한도를 다 썼습니다. 내일 다시 시도하면 됩니다.';
+  }
+  if (body.includes('disabled') || body.includes('not exist') || body.includes('deactivated')) {
+    return '이 키의 앱에서 카카오맵(로컬) API 가 꺼져 있습니다. [내 애플리케이션] → 해당 앱 → [카카오맵] → 사용 설정을 켜주세요.';
+  }
+  if (status === 401) {
+    return 'REST API 키가 올바르지 않습니다. Cloudflare Secret 값에 공백이나 줄바꿈이 섞이지 않았는지, 그리고 JavaScript 키가 아니라 REST API 키인지 확인하세요. ([앱 설정] → [플랫폼 키])';
+  }
+  if (status === 403) {
+    return '키는 인식됐지만 로컬(카카오맵) API 권한이 없습니다. Cloudflare 에 넣은 키가 카카오맵을 켜둔 그 앱의 키가 맞는지 확인하세요.';
+  }
+  return '알 수 없는 응답입니다. 아래 message 에 카카오가 보낸 내용이 그대로 들어 있습니다.';
+}
+
+/** 응답에 키가 섞여 나오더라도 밖으로 내보내지 않는다 */
+function redact(text: string, secret: string): string {
+  return secret ? text.split(secret).join('***') : text;
+}

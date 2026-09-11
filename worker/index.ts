@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { handleApi } from '../server/api';
-import { handlePlaces } from '../server/places';
+import { handlePlaces, probeKakao } from '../server/places';
 import { fetchPhoto } from '../server/places-google';
 import type { Sql } from '../server/sql';
 
@@ -34,21 +34,38 @@ export default {
     const url = new URL(request.url);
 
     /**
-     * 설정 진단용. 어떤 Secret 이 실제로 Worker 에 도달했는지 확인한다.
-     * 값은 절대 내보내지 않고 "있다/없다"만 알린다.
+     * 설정 진단용.
+     *
+     * 기본은 "어떤 Secret 이 Worker 에 도달했는지"만 본다 — 값은 절대 내보내지 않는다.
+     * ?probe=1 을 붙이면 그 키로 카카오에 실제 호출을 한 번 넣어보고,
+     * 카카오가 왜 거부하는지(키 오류 / 카카오맵 미사용 / 한도 초과)까지 알려준다.
      */
     if (url.pathname === '/api/status') {
-      return json(
-        {
-          ok: true,
-          database: Boolean(env.DATABASE_URL),
-          places: {
-            kakao: Boolean(env.KAKAO_REST_API_KEY),
-            google: Boolean(env.GOOGLE_PLACES_API_KEY),
-          },
+      const body: Record<string, unknown> = {
+        ok: true,
+        statusVersion: 2,
+        database: Boolean(env.DATABASE_URL),
+        places: {
+          kakao: Boolean(env.KAKAO_REST_API_KEY),
+          google: Boolean(env.GOOGLE_PLACES_API_KEY),
         },
-        200,
-      );
+      };
+
+      if (url.searchParams.get('probe') === '1') {
+        body.probe = {
+          kakao: env.KAKAO_REST_API_KEY
+            ? await probeKakao(env.KAKAO_REST_API_KEY)
+            : {
+                ok: false,
+                status: 0,
+                diagnosis:
+                  'KAKAO_REST_API_KEY 가 Worker 에 없습니다. Cloudflare → Workers → 이 Worker → Settings → Variables and Secrets 에 같은 이름으로 Secret 을 넣고 다시 배포하세요.',
+              },
+        };
+      }
+
+      // 진단 결과는 캐시되면 안 된다 — 설정을 고친 직후에 다시 물어보게 된다
+      return json(body, 200, { 'cache-control': 'no-store' });
     }
 
     // 식당 사진 프록시 — 구글 키를 노출하지 않고 이미지를 중계한다.
@@ -116,9 +133,13 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-function json(body: unknown, status: number): Response {
+function json(
+  body: unknown,
+  status: number,
+  extra: Record<string, string> = {},
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...extra },
   });
 }

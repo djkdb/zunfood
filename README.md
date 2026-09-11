@@ -178,6 +178,49 @@ SPA 폴백은 `_redirects` 가 아니라 Worker 가 처리합니다.
    (안 되면 `DATABASE_URL` 미설정)
 4. 초대 링크를 새 탭에 붙여넣어 새로고침 → 404 가 아니라 앱이 뜨는지
 
+### 설정 진단 — `/api/status`
+
+식당이 "데모 데이터 · 실제 주소 아님" 으로 나온다면 여기부터 본다.
+
+```
+GET /api/status            → 어떤 Secret 이 Worker 에 도달했는지 (값은 안 나온다)
+GET /api/status?probe=1    → 그 키로 카카오에 실제 호출을 넣어보고 거부 사유까지
+```
+
+`?probe=1` 응답 예시:
+
+```json
+{
+  "ok": true,
+  "statusVersion": 2,
+  "database": true,
+  "places": { "kakao": true, "google": false },
+  "probe": {
+    "kakao": {
+      "ok": false,
+      "status": 401,
+      "message": "{\"errorType\":\"AccessDeniedError\"}",
+      "diagnosis": "REST API 키가 올바르지 않습니다. ..."
+    }
+  }
+}
+```
+
+읽는 법:
+
+| 응답 | 원인 | 조치 |
+| --- | --- | --- |
+| `404` | 배포가 이 커밋보다 옛것 | 다시 배포 |
+| `"kakao": false` | Secret 이 Worker 에 없음 | 이름이 정확히 `KAKAO_REST_API_KEY` 인지 확인 후 재배포 |
+| `probe.kakao.ok: true` | 서버는 정상 | 브라우저에서 **새로고침** (폴백은 페이지 단위로 고정된다) |
+| `probe.kakao.status: 401` | 키가 틀림 | REST API 키를 공백 없이 다시 넣기 |
+| `probe.kakao.status: 403` | 카카오맵 권한 없음 | 그 앱의 [카카오맵] → 사용 설정 ON |
+| `diagnosis` 에 "한도" | 오늘 호출 다 씀 | 다음 날 자동 복구 |
+
+키 값은 어떤 경우에도 응답에 담기지 않는다. 카카오 응답 본문에 키가 섞여 나오면
+`***` 로 가린 뒤 300자까지만 싣는다. `probe=1` 은 카카오 호출을 1건 쓰므로
+평소에는 붙이지 않는다.
+
 ---
 
 ## 아키텍처
