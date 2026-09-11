@@ -33,6 +33,24 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    /**
+     * 설정 진단용. 어떤 Secret 이 실제로 Worker 에 도달했는지 확인한다.
+     * 값은 절대 내보내지 않고 "있다/없다"만 알린다.
+     */
+    if (url.pathname === '/api/status') {
+      return json(
+        {
+          ok: true,
+          database: Boolean(env.DATABASE_URL),
+          places: {
+            kakao: Boolean(env.KAKAO_REST_API_KEY),
+            google: Boolean(env.GOOGLE_PLACES_API_KEY),
+          },
+        },
+        200,
+      );
+    }
+
     // 식당 사진 프록시 — 구글 키를 노출하지 않고 이미지를 중계한다.
     // 사진은 결과 화면에서 한 장만 요청하고, 오래 캐시해서 이미지 과금을 줄인다.
     if (url.pathname === '/api/places/photo') {
