@@ -1,6 +1,7 @@
 import { neon } from '@neondatabase/serverless';
 import { handleApi } from '../server/api';
 import { handlePlaces, probeKakao } from '../server/places';
+import { diagnoseEnv } from './diagnose';
 import { fetchPhoto } from '../server/places-google';
 import type { Sql } from '../server/sql';
 
@@ -36,19 +37,25 @@ export default {
     /**
      * 설정 진단용.
      *
-     * 기본은 "어떤 Secret 이 Worker 에 도달했는지"만 본다 — 값은 절대 내보내지 않는다.
+     * 기본은 "무엇이 Worker 에 도달했는지"(이름·길이·형식)만 본다 — 값은 한 글자도 내보내지 않는다.
      * ?probe=1 을 붙이면 그 키로 카카오에 실제 호출을 한 번 넣어보고,
      * 카카오가 왜 거부하는지(키 오류 / 카카오맵 미사용 / 한도 초과)까지 알려준다.
      */
     if (url.pathname === '/api/status') {
+      const diagnosis = diagnoseEnv(env as unknown as Record<string, unknown>);
       const body: Record<string, unknown> = {
         ok: true,
-        statusVersion: 2,
+        statusVersion: 3,
+        // 어느 Worker 를 보고 있는지 — 여러 개 만들었을 때 헷갈리지 않게
+        host: url.host,
         database: Boolean(env.DATABASE_URL),
         places: {
           kakao: Boolean(env.KAKAO_REST_API_KEY),
           google: Boolean(env.GOOGLE_PLACES_API_KEY),
         },
+        summary: diagnosis.summary,
+        bindings: diagnosis.bindings,
+        shapes: diagnosis.shapes,
       };
 
       if (url.searchParams.get('probe') === '1') {

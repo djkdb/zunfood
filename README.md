@@ -140,6 +140,33 @@ npm run dev:worker               # 빌드 후 wrangler dev
 
 ### 환경변수 주의점
 
+#### ⚠️ 가장 많이 걸리는 함정: Text 가 아니라 Secret
+
+Cloudflare 대시보드에는 이름이 거의 같은 칸이 **두 개** 있고, 각각 의미가 다릅니다.
+
+| 위치 | 언제 존재하나 | 여기에 넣을 것 |
+| --- | --- | --- |
+| Settings → **Build** → Variables and secrets | `npm run build` 도는 동안만 | `VITE_...` (보통 불필요) |
+| Settings → **Variables and Secrets** | 앱이 실제로 돌 때 | `DATABASE_URL`, `KAKAO_REST_API_KEY` |
+
+그리고 아래쪽 칸에 넣을 때 **Type 을 반드시 `Secret` 으로** 골라야 합니다.
+
+> `Text` 로 넣은 값은 **다음 `wrangler deploy` 때 지워집니다.** wrangler 는 평문 변수의
+> 기준을 `wrangler.toml` 의 `[vars]` 로 보기 때문에, 거기에 없는 평문 변수는 배포할 때
+> 정리됩니다. `Secret` 은 배포와 무관하게 유지됩니다.
+>
+> 그래서 "분명히 넣었는데 며칠 뒤 다시 안 된다" = Text 로 넣었고 그 사이 커밋을 푸시했다는
+> 뜻입니다. `/api/status` 의 `bindings` 가 `["ASSETS"]` 뿐이면 이 경우입니다.
+
+CLI 로 넣으면 항상 Secret 이라 이 함정이 없습니다:
+
+```bash
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put KAKAO_REST_API_KEY
+```
+
+#### 빌드 시점 값
+
 `VITE_` 접두사 값은 **빌드 시점에 번들에 박히고 브라우저에 공개**됩니다.
 
 * `DATABASE_URL` 은 **`VITE_` 가 없으므로 서버에만 남습니다.** 브라우저 번들에 들어가지 않습니다.
@@ -192,7 +219,7 @@ GET /api/status?probe=1    → 그 키로 카카오에 실제 호출을 넣어�
 ```json
 {
   "ok": true,
-  "statusVersion": 2,
+  "statusVersion": 3,
   "database": true,
   "places": { "kakao": true, "google": false },
   "probe": {
@@ -206,14 +233,20 @@ GET /api/status?probe=1    → 그 키로 카카오에 실제 호출을 넣어�
 }
 ```
 
+`summary` 에 무엇이 잘못됐고 무엇을 해야 하는지 한 줄로 나옵니다. `bindings` 는
+Worker 에 실제로 도달한 변수 **이름**, `shapes` 는 값의 **길이와 형식**만 담습니다
+(공백·따옴표·키 형식 오류를 값 없이 잡아내기 위한 것).
+
 읽는 법:
 
 | 응답 | 원인 | 조치 |
 | --- | --- | --- |
-| `404` | 배포가 이 커밋보다 옛것 | 다시 배포 |
-| `"kakao": false` | Secret 이 Worker 에 없음 | 이름이 정확히 `KAKAO_REST_API_KEY` 인지 확인 후 재배포 |
+| `404` 또는 `statusVersion` 없음 | 배포가 이 커밋보다 옛것 | 다시 배포 |
+| `bindings: ["ASSETS"]` | 런타임 변수가 하나도 없음 | Type 을 **Secret** 으로 다시 넣기 (위 함정 참고) |
+| `bindings` 에 비슷한 이름 | 이름 오타 | `summary` 가 정확한 이름을 알려준다 |
+| `shapes` 의 `length ≠ trimmedLength` | 값에 공백·줄바꿈 | 공백 없이 다시 넣기 |
 | `probe.kakao.ok: true` | 서버는 정상 | 브라우저에서 **새로고침** (폴백은 페이지 단위로 고정된다) |
-| `probe.kakao.status: 401` | 키가 틀림 | REST API 키를 공백 없이 다시 넣기 |
+| `probe.kakao.status: 401` | 키가 틀림 | REST API 키를 다시 넣기 |
 | `probe.kakao.status: 403` | 카카오맵 권한 없음 | 그 앱의 [카카오맵] → 사용 설정 ON |
 | `diagnosis` 에 "한도" | 오늘 호출 다 씀 | 다음 날 자동 복구 |
 
