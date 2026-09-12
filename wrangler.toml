@@ -6,7 +6,10 @@
 #
 # 로컬에서 서버까지 띄우려면: npm run dev:worker
 
-name = "mealgame"
+# 배포된 Worker 이름과 반드시 같아야 한다.
+# 다르면 `wrangler deploy` / `wrangler secret put` 이 같은 이름의 Worker 를 새로
+# 만들어 버려서, Secret 을 넣어도 실제로 서비스되는 Worker 에는 반영되지 않는다.
+name = "zunfood"
 main = "worker/index.ts"
 compatibility_date = "2025-09-10"
 # Neon 드라이버가 일부 Node 내장 모듈을 참조할 수 있어 켜둔다

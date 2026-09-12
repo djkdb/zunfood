@@ -111,11 +111,20 @@ NODE_VERSION = 22
 배포 빌드는 자동으로 `/api` + 카카오를 씁니다.
 
 **② 런타임 시크릿** (Worker 의 Settings → *Variables and Secrets*)
-배포된 Worker 가 실행 중에 읽는 값입니다. **Secret(암호화)** 로 추가하세요.
+배포된 Worker 가 실행 중에 읽는 값입니다.
 
 ```
-DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
+DATABASE_URL        = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
+KAKAO_REST_API_KEY  = (카카오 REST API 키 32자리)
 ```
+
+클릭 순서까지 적으면:
+
+1. **Workers & Pages** → `wrangler.toml` 의 `name` 과 같은 Worker 를 고른다
+2. **Settings** 탭 → **Variables and Secrets** → **+ Add**
+3. **Type** 을 `Secret` 으로 바꾼다 ← 기본값이 `Text` 라서 그냥 넘기면 안 된다
+4. Name / Value 입력 → **Deploy** 버튼까지 누른다 (누르지 않으면 저장되지 않는다)
+5. `/api/status` 의 `bindings` 에 이름이 보이는지 확인한다
 
 `DATABASE_URL` 에 `VITE_` 를 붙이면 브라우저 번들에 DB 비밀번호가 박힙니다. 절대 붙이지 마세요.
 반대로 `VITE_API_BASE` 를 런타임 변수에만 넣으면 빌드가 못 보고 로컬 모드로 배포됩니다.
@@ -127,9 +136,15 @@ DATABASE_URL = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
 
 ```bash
 npx wrangler login
-npx wrangler secret put DATABASE_URL   # 런타임 시크릿 등록 (최초 1회)
-npm run deploy                          # 빌드 후 wrangler deploy
+npx wrangler secret put DATABASE_URL        # 런타임 시크릿 등록 (최초 1회)
+npx wrangler secret put KAKAO_REST_API_KEY
+npm run deploy                              # 빌드 후 wrangler deploy
 ```
+
+⚠️ `wrangler` 는 `wrangler.toml` 의 `name` 으로 대상을 정합니다. 그 값이 실제 배포된
+Worker 이름과 다르면 **같은 이름의 Worker 를 새로 만들어** 거기에 Secret 을 넣어버리고,
+서비스되는 Worker 에는 아무 일도 일어나지 않습니다. `/api/status` 의 `host` 로
+지금 어느 Worker 를 보고 있는지 확인할 수 있습니다.
 
 로컬에서 Worker 까지 그대로 띄워보려면:
 
