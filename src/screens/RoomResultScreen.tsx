@@ -57,6 +57,7 @@ export function RoomResultScreen({ room, players, isHost }: RoomResultScreenProp
         restaurant={winner}
         kicker="오늘의 선택"
         teaser="오늘 우리는…"
+        candidates={room.candidates}
         footnote={
           <span className="flex flex-col items-center gap-1">
             {game && (

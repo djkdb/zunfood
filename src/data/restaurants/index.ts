@@ -1,4 +1,5 @@
 import { ENV } from '@/config/env';
+import { markDemoData } from '@/store/dataSourceStore';
 import { ApiRestaurantRepository } from './ApiRestaurantRepository';
 import { MockRestaurantRepository } from './MockRestaurantRepository';
 import type { RestaurantRepository } from './RestaurantRepository';
@@ -12,10 +13,13 @@ let instance: RestaurantRepository | null = null;
 export function getRestaurantRepository(): RestaurantRepository {
   if (instance) return instance;
   const remote = ENV.placesProvider === 'kakao' || ENV.placesProvider === 'google';
-  instance =
-    remote && ENV.apiBase
-      ? new ApiRestaurantRepository(ENV.apiBase, ENV.placesProvider)
-      : new MockRestaurantRepository();
+  if (remote && ENV.apiBase) {
+    instance = new ApiRestaurantRepository(ENV.apiBase, ENV.placesProvider);
+  } else {
+    // 서버가 없는 환경(로컬 개발 등) — 화면에서 예시 데이터임을 밝힌다
+    markDemoData('no-backend');
+    instance = new MockRestaurantRepository();
+  }
   return instance;
 }
 

@@ -17,7 +17,8 @@ export function Confetti({ fire = true }: { fire?: boolean }) {
         gravity: 0.95,
         scalar: 1,
         colors: ['#2F6BFF', '#FF7A1A', '#12B76A', '#F5A524', '#FFFFFF'],
-        zIndex: 60,
+        // 시트(50)·토스트(60)보다 아래. 결과 화면 위에서만 날린다.
+        zIndex: 45,
       };
       confetti({ ...base, particleCount: 80, origin: { x: 0.5, y: 0.34 } });
       timers.push(

@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Button } from '@/components/ui/Button';
+import { CandidateSheet } from '@/components/CandidateSheet';
+import { DemoDataNotice } from '@/components/DemoDataNotice';
 import { Confetti } from '@/components/ui/Confetti';
 import { LoadingDots } from '@/components/ui/ProgressBar';
 import { RestaurantThumb } from '@/components/RestaurantThumb';
@@ -31,6 +33,8 @@ interface ResultViewProps {
   teaser?: string;
   /** 식당 아래 한 줄 — 게임 이름·참가자 등 */
   footnote?: ReactNode;
+  /** 이번 결정에 올랐던 후보 전체 (있으면 목록을 열어볼 수 있다) */
+  candidates?: Restaurant[];
   actions?: ResultAction[];
   onShare?: () => void;
 }
@@ -46,11 +50,13 @@ export function ResultView({
   kicker,
   teaser,
   footnote,
+  candidates = [],
   actions = [],
   onShare,
 }: ResultViewProps) {
   const [revealed, setRevealed] = useState(!teaser);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [candidatesOpen, setCandidatesOpen] = useState(false);
 
   const stats: { value: string; label: string }[] = [
     ...(restaurant.rating > 0
@@ -157,6 +163,16 @@ export function ResultView({
                 {restaurant.address}
               </motion.p>
 
+              {/* 예시 데이터로 내려간 상태면 여기서 사실대로 밝힌다 */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.42 }}
+                className="mt-3 w-full"
+              >
+                <DemoDataNotice />
+              </motion.div>
+
               {footnote && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -217,6 +233,15 @@ export function ResultView({
                 >
                   {restaurant.menu.length > 0 ? '메뉴·길찾기' : '길찾기'}
                 </button>
+                {candidates.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setCandidatesOpen(true)}
+                    className="h-11 rounded-md px-3.5 text-[14px] font-bold text-white/55 active:bg-white/10"
+                  >
+                    후보 {candidates.length}곳
+                  </button>
+                )}
                 {actions.slice(2).map((action) => (
                   <button
                     key={action.label}
@@ -232,6 +257,13 @@ export function ResultView({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <CandidateSheet
+        open={candidatesOpen}
+        onClose={() => setCandidatesOpen(false)}
+        candidates={candidates}
+        winnerId={restaurant.id}
+      />
 
       <Sheet open={menuOpen} onClose={() => setMenuOpen(false)} title={restaurant.name}>
         {restaurant.menu.length > 0 ? (

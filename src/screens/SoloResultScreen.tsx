@@ -137,6 +137,7 @@ export function SoloResultScreen() {
           kicker="오늘의 선택"
           teaser="오늘은…"
           footnote={store.reason}
+          candidates={store.candidates}
           onShare={share}
           actions={[
             { label: '다시 뽑기', onClick: () => store.reroll() },

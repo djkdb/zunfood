@@ -1,4 +1,5 @@
 import type { Restaurant, RestaurantQuery } from '@/types/restaurant';
+import { markDemoData } from '@/store/dataSourceStore';
 import { MockRestaurantRepository } from './MockRestaurantRepository';
 import {
   RestaurantSearchError,
@@ -60,6 +61,7 @@ export class ApiRestaurantRepository implements RestaurantRepository {
             'Worker Secret 에 KAKAO_REST_API_KEY 를 넣어주세요.',
         );
         this.useFallback = true;
+        markDemoData('no-key');
         return this.fallback.search(query);
       }
       throw error;
