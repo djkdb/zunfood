@@ -30,6 +30,12 @@
     background: var(--app-bg);
     color: #101828;
     font-size: 15px;
+    /*
+     * 한국어는 어절 단위로 끊어야 읽힌다. 기본값(break-word)을 두면
+     * "손을 들어드 / 립니다" 처럼 단어 중간에서 잘린다.
+     */
+    word-break: keep-all;
+    overflow-wrap: break-word;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     overscroll-behavior-y: none;
