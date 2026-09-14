@@ -44,4 +44,7 @@ export const TIMING = {
   battleVoteMs: 15_000,
   battleRevealMs: 3_400,
   judgeThinkingMs: 2_600,
+  /** 경매는 나눠 걸어야 해서 투표보다 시간이 더 필요하다 */
+  auctionBidMs: 40_000,
+  auctionRevealMs: 4_600,
 } as const;

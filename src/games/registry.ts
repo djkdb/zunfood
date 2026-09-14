@@ -3,6 +3,7 @@ import { rouletteGame } from './roulette/logic';
 import { battleGame } from './battle/logic';
 import { judgeGame } from './judge/logic';
 import { fateGame } from './fate/logic';
+import { auctionGame } from './auction/logic';
 
 /**
  * 게임 레지스트리.
@@ -14,6 +15,7 @@ export const GAMES: GameMode<never>[] = [
   battleGame as GameMode<never>,
   judgeGame as GameMode<never>,
   fateGame as GameMode<never>,
+  auctionGame as GameMode<never>,
 ];
 
 const BY_ID = new Map<GameId, GameMode<never>>(GAMES.map((g) => [g.id, g]));

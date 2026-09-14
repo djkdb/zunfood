@@ -1,7 +1,7 @@
 import type { Player } from './room';
 import type { PlaceLocation, Restaurant, RestaurantFilters } from './restaurant';
 
-export type GameId = 'roulette' | 'battle' | 'judge' | 'fate';
+export type GameId = 'roulette' | 'battle' | 'judge' | 'fate' | 'auction';
 
 /** 참가자가 호스트에게 보내는 액션 (실시간 채널을 통해 전달) */
 export interface GameAction<P = Record<string, unknown>> {
