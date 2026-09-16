@@ -3,7 +3,7 @@ import { handleApi } from '../server/api';
 import { handlePlaces, probeKakao } from '../server/places';
 import { diagnoseEnv } from './diagnose';
 import { renderStatusPage } from './status-page';
-import { fetchPhoto } from '../server/places-google';
+import { fetchPhoto, probeGoogle } from '../server/places-google';
 import type { Sql } from '../server/sql';
 
 export interface Env {
@@ -83,16 +83,19 @@ export default {
       };
 
       if (url.searchParams.get('probe') === '1') {
-        body.probe = {
-          kakao: env.KAKAO_REST_API_KEY
-            ? await probeKakao(env.KAKAO_REST_API_KEY)
-            : {
+        // 설정된 제공자만 시험한다 — 없는 키로 외부 호출을 낭비하지 않는다
+        const [kakao, google] = await Promise.all([
+          env.KAKAO_REST_API_KEY
+            ? probeKakao(env.KAKAO_REST_API_KEY)
+            : Promise.resolve({
                 ok: false,
                 status: 0,
                 diagnosis:
-                  'KAKAO_REST_API_KEY 가 Worker 에 없습니다. Cloudflare → Workers → 이 Worker → Settings → Variables and Secrets 에 같은 이름으로 Secret 을 넣고 다시 배포하세요.',
-              },
-        };
+                  'KAKAO_REST_API_KEY 가 Worker 에 없습니다. 빌드 변수에 넣고 다시 배포하세요.',
+              }),
+          env.GOOGLE_PLACES_API_KEY ? probeGoogle(env.GOOGLE_PLACES_API_KEY) : null,
+        ]);
+        body.probe = google ? { kakao, google } : { kakao };
       }
 
       // 진단 결과는 캐시되면 안 된다 — 설정을 고친 직후에 다시 물어보게 된다

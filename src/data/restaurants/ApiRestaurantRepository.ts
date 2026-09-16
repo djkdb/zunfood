@@ -84,14 +84,19 @@ export class ApiRestaurantRepository implements RestaurantRepository {
 
     if (!response.ok) {
       let code = 'unknown';
+      let serverMessage = '';
       try {
-        code = ((await response.json()) as { error?: string }).error ?? 'unknown';
+        const body = (await response.json()) as { error?: string; message?: string };
+        code = body.error ?? 'unknown';
+        serverMessage = (body.message ?? '').trim();
       } catch {
         // 본문이 없으면 아래 기본 메시지를 쓴다
       }
       throw new RestaurantSearchError(
         code === 'auth' ? 'auth' : code === 'network' ? 'network' : 'unknown',
-        ERROR_MESSAGE[code] ?? ERROR_MESSAGE.network,
+        // 서버는 무엇이 잘못됐는지 알고 구체적으로 적어 보낸다.
+        // 그걸 버리고 "불러오지 못했어요" 로 덮으면 사용자도 우리도 원인을 잃는다.
+        serverMessage || ERROR_MESSAGE[code] || ERROR_MESSAGE.network,
       );
     }
 

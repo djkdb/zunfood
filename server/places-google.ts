@@ -221,3 +221,81 @@ export function mapCategory(primaryType?: string, types: string[] = []): FoodCat
   }
   return 'etc';
 }
+
+/**
+ * 설정된 구글 키로 실제 호출을 한 번 넣어보고 결과를 알려준다.
+ *
+ * 구글은 실패 사유를 본문에 꽤 정확히 적어준다 ("API has not been used in
+ * project ... before or it is disabled" 등). 그대로 옮겨주면 콘솔에서 무엇을
+ * 켜야 하는지 바로 알 수 있다.
+ *
+ * 필드 마스크를 id 하나로 줄여 가장 싼 등급으로 호출한다 — 진단 때문에
+ * Enterprise 호출을 쓰면 아깝다.
+ */
+export async function probeGoogle(apiKey: string): Promise<{
+  ok: boolean;
+  status: number;
+  message?: string;
+  diagnosis: string;
+}> {
+  let response: Response;
+  try {
+    response = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'places.id',
+      },
+      body: JSON.stringify({
+        includedTypes: ['restaurant'],
+        maxResultCount: 1,
+        locationRestriction: {
+          circle: { center: { latitude: 37.5665, longitude: 126.978 }, radius: 500 },
+        },
+      }),
+    });
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      diagnosis: 'Worker 에서 places.googleapis.com 에 연결하지 못했습니다.',
+    };
+  }
+
+  const raw = await response.text().catch(() => '');
+  const message = redact(raw, apiKey).slice(0, 400);
+
+  if (response.ok) {
+    return { ok: true, status: 200, diagnosis: '구글 키가 정상 동작합니다.' };
+  }
+  return { ok: false, status: response.status, message, diagnosis: diagnoseGoogle(message) };
+}
+
+/** 구글이 보낸 사유 → 콘솔에서 할 일 */
+function diagnoseGoogle(body: string): string {
+  if (/has not been used in project|is disabled/.test(body)) {
+    return 'Places API (New) 가 이 프로젝트에서 켜져 있지 않습니다. Google Cloud 콘솔 → API 및 서비스 → 라이브러리 → [Places API (New)] → 사용 설정.';
+  }
+  if (/API key not valid|API_KEY_INVALID/.test(body)) {
+    return '키가 올바르지 않습니다. 값에 공백이 섞이지 않았는지, 이 프로젝트의 키가 맞는지 확인하세요.';
+  }
+  if (/referer|referrer|IP address|API_KEY_HTTP_REFERRER_BLOCKED|API_KEY_IP_ADDRESS_BLOCKED/i.test(body)) {
+    return '키에 걸린 애플리케이션 제한(웹사이트/IP) 때문에 막혔습니다. 서버에서 호출하므로 애플리케이션 제한은 [없음] 이어야 하고, [API 제한사항] 으로만 Places API (New) 를 지정하세요.';
+  }
+  if (/billing|BILLING_DISABLED/i.test(body)) {
+    return '결제 계정이 연결되어 있지 않습니다. Google Cloud 콘솔 → 결제 에서 프로젝트에 결제 계정을 연결하세요.';
+  }
+  if (/RESOURCE_EXHAUSTED|quota|rateLimitExceeded/i.test(body)) {
+    return '할당량을 다 썼습니다. 콘솔의 할당량 설정이나 무료 한도를 확인하세요.';
+  }
+  if (/PERMISSION_DENIED/.test(body)) {
+    return '권한이 거부됐습니다. 키의 [API 제한사항] 에 Places API (New) 가 포함되어 있는지 확인하세요.';
+  }
+  return '알 수 없는 응답입니다. 아래 message 에 구글이 보낸 내용이 그대로 들어 있습니다.';
+}
+
+/** 응답에 키가 섞여 나오더라도 밖으로 내보내지 않는다 */
+function redact(text: string, secret: string): string {
+  return secret ? text.split(secret).join('***') : text;
+}

@@ -113,7 +113,7 @@ export function renderStatusPage(input: StatusPageInput): string {
 
   <div class="card">${rows}</div>
 
-  ${required ? probeSection() : fixSection()}
+  ${required ? probeSection(google) : fixSection()}
 
   <div class="card" style="padding:14px 16px">
     <h2>Worker 에 도달한 바인딩</h2>
@@ -135,11 +135,16 @@ export function renderStatusPage(input: StatusPageInput): string {
     try {
       var res = await fetch('/api/status?probe=1');
       var data = await res.json();
-      var k = (data.probe && data.probe.kakao) || {};
-      out.textContent =
-        (k.ok ? '✅ ' : '❌ ') + (k.diagnosis || '응답 없음') +
-        (k.status ? '\\n\\nHTTP ' + k.status : '') +
-        (k.message ? '\\n' + k.message : '');
+      var probe = data.probe || {};
+      var labels = { kakao: '카카오', google: '구글' };
+      var lines = Object.keys(probe).map(function (name) {
+        var p = probe[name] || {};
+        return '[' + (labels[name] || name) + '] ' +
+          (p.ok ? '✅ ' : '❌ ') + (p.diagnosis || '응답 없음') +
+          (p.status ? '\\nHTTP ' + p.status : '') +
+          (p.message ? '\\n' + p.message : '');
+      });
+      out.textContent = lines.join('\\n\\n');
     } catch (err) {
       out.textContent = '❌ 요청에 실패했습니다: ' + err;
     }
@@ -167,13 +172,14 @@ function row(
   </div>`;
 }
 
-function probeSection(): string {
+function probeSection(hasGoogle: boolean): string {
   return `<div class="card" style="padding:16px">
-    <h2>카카오가 이 키를 받아주는지</h2>
+    <h2>키가 실제로 받아들여지는지</h2>
     <p class="meta" style="margin:0 0 12px">
-      실제로 검색을 한 번 넣어봅니다. 하루 할당량에서 1건을 씁니다.
+      설정된 ${hasGoogle ? '카카오와 구글에' : '카카오에'} 검색을 한 번씩 넣어봅니다.
+      각 할당량에서 1건을 씁니다.
     </p>
-    <button id="probe" type="button">카카오에 확인해보기</button>
+    <button id="probe" type="button">확인해보기</button>
     <pre id="probe-out">아직 확인하지 않았습니다.</pre>
   </div>`;
 }
