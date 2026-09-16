@@ -4,18 +4,25 @@ import { battleGame } from './battle/logic';
 import { judgeGame } from './judge/logic';
 import { fateGame } from './fate/logic';
 import { auctionGame } from './auction/logic';
+import { eliminationGame } from './elimination/logic';
 
 /**
  * 게임 레지스트리.
  * 새 게임을 추가하려면 GameMode 를 구현해서 이 배열에 넣기만 하면 된다.
  * 방/실시간 시스템은 수정할 필요가 없다.
  */
+/**
+ * 목록 순서가 곧 추천 순서다.
+ * 직접 개입하는 게임을 앞에 둔다 — 눌러놓고 구경만 하는 게임이 먼저 보이면
+ * 앱 전체가 "그냥 랜덤 뽑기" 로 읽힌다.
+ */
 export const GAMES: GameMode<never>[] = [
-  rouletteGame as GameMode<never>,
   battleGame as GameMode<never>,
-  judgeGame as GameMode<never>,
-  fateGame as GameMode<never>,
+  eliminationGame as GameMode<never>,
   auctionGame as GameMode<never>,
+  judgeGame as GameMode<never>,
+  rouletteGame as GameMode<never>,
+  fateGame as GameMode<never>,
 ];
 
 const BY_ID = new Map<GameId, GameMode<never>>(GAMES.map((g) => [g.id, g]));

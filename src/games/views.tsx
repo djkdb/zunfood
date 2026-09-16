@@ -5,6 +5,7 @@ import { BattleView } from './battle/View';
 import { JudgeView } from './judge/View';
 import { FateView } from './fate/View';
 import { AuctionView } from './auction/View';
+import { EliminationView } from './elimination/View';
 
 /**
  * 게임 id → 화면 컴포넌트 매핑.
@@ -16,4 +17,5 @@ export const GAME_VIEWS: Record<GameId, ComponentType<GameViewProps<never>>> = {
   judge: JudgeView as ComponentType<GameViewProps<never>>,
   fate: FateView as ComponentType<GameViewProps<never>>,
   auction: AuctionView as ComponentType<GameViewProps<never>>,
+  elimination: EliminationView as ComponentType<GameViewProps<never>>,
 };
