@@ -8,7 +8,8 @@ import { ResultView } from '@/components/ResultView';
 import { formatRadius } from '@/lib/format';
 import { APP, SEARCH } from '@/config/app';
 import { shareOrCopy } from '@/lib/share';
-import { reelOrder, SOLO_METHODS } from '@/solo/methods';
+import { isPlayable, reelOrder, soloMethod, SOLO_METHODS } from '@/solo/methods';
+import { SOLO_GAME_VIEWS } from '@/solo/games/views';
 import { useSoloStore } from '@/store/soloStore';
 import { toast } from '@/store/toastStore';
 
@@ -34,13 +35,18 @@ export function SoloResultScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 후보를 받으면 릴을 돌린 뒤 결과를 연다
+  // 후보를 받으면 릴을 돌린 뒤 결과를 연다.
+  // 직접 플레이하는 방식은 이미 내가 골랐으니 릴 없이 바로 결과를 보여준다.
   useEffect(() => {
     if (store.status !== 'ready' || !store.result) return;
+    if (isPlayable(store.method)) {
+      setPhase('done');
+      return;
+    }
     setPhase('reeling');
     const timer = window.setTimeout(() => setPhase('done'), REEL_MS);
     return () => window.clearTimeout(timer);
-  }, [store.status, store.result?.id]);
+  }, [store.status, store.result?.id, store.method]);
 
   useEffect(() => {
     if (store.status === 'loading') setPhase('busy');
@@ -92,6 +98,52 @@ export function SoloResultScreen() {
     );
   }
 
+  // 직접 플레이하는 방식 — 후보는 왔고 결정은 아직
+  const GameView = SOLO_GAME_VIEWS[store.method];
+  const needed = soloMethod(store.method).minCandidates;
+
+  if (store.status === 'ready' && !store.result && GameView && store.candidates.length < needed) {
+    const next = SEARCH.radiusOptions.find((r) => r > store.radius);
+    return (
+      <Screen variant="arena">
+        <SoloBar onBack={() => navigate('/solo')} />
+        <div className="pad-x flex flex-1 flex-col">
+          <StatusView
+            surface="dark"
+            emoji="🔍"
+            title={`주변에 ${store.candidates.length}곳뿐이에요`}
+            description={`${soloMethod(store.method).title}은(는) ${needed}곳부터 할 수 있어요.`}
+            action={
+              next
+                ? {
+                    label: `반경 ${formatRadius(next)}로 늘리기`,
+                    onClick: () => void store.widenRadius(),
+                  }
+                : undefined
+            }
+            secondaryAction={{ label: '다른 방식 고르기', onClick: () => navigate('/solo') }}
+          />
+        </div>
+      </Screen>
+    );
+  }
+
+  if (store.status === 'ready' && !store.result && GameView) {
+    return (
+      <Screen variant="arena">
+        <SoloBar onBack={() => navigate('/solo')} />
+        <div className="pad-x pad-bottom flex flex-1 flex-col pt-1">
+          <GameView
+            key={store.playSeed}
+            candidates={store.candidates}
+            seed={store.playSeed}
+            onDecide={store.commit}
+          />
+        </div>
+      </Screen>
+    );
+  }
+
   if (phase !== 'done' || !store.result) {
     return (
       <Screen variant="arena">
@@ -135,12 +187,16 @@ export function SoloResultScreen() {
         <ResultView
           restaurant={store.result}
           kicker="오늘의 선택"
-          teaser="오늘은…"
+          // 직접 고른 결과를 "오늘은…" 하고 다시 뜸들이면 김이 샌다
+          teaser={isPlayable(store.method) ? undefined : '오늘은…'}
           footnote={store.reason}
           candidates={store.candidates}
           onShare={share}
           actions={[
-            { label: '다시 뽑기', onClick: () => store.reroll() },
+            {
+              label: isPlayable(store.method) ? '다시 하기' : '다시 뽑기',
+              onClick: () => store.reroll(),
+            },
             { label: '친구들과 게임하기', onClick: () => navigate('/create') },
             { label: '조건 바꾸기', onClick: () => navigate('/solo') },
           ]}

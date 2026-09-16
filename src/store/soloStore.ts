@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { SEARCH } from '@/config/app';
 import { getRestaurantRepository, RestaurantSearchError } from '@/data/restaurants';
-import { pickRestaurant, type SoloMethod } from '@/solo/methods';
+import { isPlayable, pickRestaurant, type SoloMethod } from '@/solo/methods';
 import { DEFAULT_FILTERS, type PlaceLocation, type Restaurant, type RestaurantFilters } from '@/types/restaurant';
 
 const STORAGE_KEY = 'mealgame:solo';
@@ -21,6 +21,8 @@ interface SoloState extends Persisted {
   result: Restaurant | null;
   reason: string;
   error: string | null;
+  /** 직접 플레이하는 방식의 판 배치를 고정하는 시드. 다시 하면 바뀐다 */
+  playSeed: number;
 
   setLocation: (location: PlaceLocation) => void;
   setRadius: (radius: number) => void;
@@ -30,6 +32,8 @@ interface SoloState extends Persisted {
   decide: () => Promise<void>;
   /** 이미 불러온 후보 안에서 다시 뽑는다 (네트워크 재호출 없음) */
   reroll: () => void;
+  /** 직접 플레이하는 방식에서 결과가 정해졌을 때 */
+  commit: (winner: Restaurant, reason: string) => void;
   /** "반경 넓히기" 같은 복구 액션 */
   widenRadius: () => Promise<void>;
   reset: () => void;
@@ -78,6 +82,7 @@ export const useSoloStore = create<SoloState>((set, get) => ({
   result: null,
   reason: '',
   error: null,
+  playSeed: Date.now(),
 
   setLocation(location) {
     set({ location });
@@ -118,6 +123,12 @@ export const useSoloStore = create<SoloState>((set, get) => ({
         return;
       }
 
+      // 직접 플레이하는 방식은 화면에서 결정한다 — 여기서 미리 뽑지 않는다
+      if (isPlayable(method)) {
+        set({ candidates, status: 'ready', result: null, reason: '', playSeed: Date.now() });
+        return;
+      }
+
       const pick = pickRestaurant(method, candidates, Date.now(), filters.budget);
       set({
         candidates,
@@ -142,8 +153,17 @@ export const useSoloStore = create<SoloState>((set, get) => ({
       void get().decide();
       return;
     }
+    // 플레이하는 방식은 "다시 뽑기" 가 곧 새 판이다
+    if (isPlayable(method)) {
+      set({ result: null, reason: '', status: 'ready', playSeed: Date.now() });
+      return;
+    }
     const pick = pickRestaurant(method, candidates, Date.now(), filters.budget);
     set({ result: pick?.winner ?? null, reason: pick?.reason ?? '', status: 'ready' });
+  },
+
+  commit(winner, reason) {
+    set({ result: winner, reason, status: 'ready' });
   },
 
   async widenRadius() {

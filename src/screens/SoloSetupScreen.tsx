@@ -6,7 +6,7 @@ import { AppBar, Screen } from '@/components/ui/Screen';
 import { ConditionFields } from '@/components/ConditionFields';
 import { LocationSheet } from '@/components/LocationSheet';
 import { formatRadius } from '@/lib/format';
-import { SOLO_METHODS } from '@/solo/methods';
+import { SOLO_METHODS, type SoloMethod, type SoloMethodMeta } from '@/solo/methods';
 import { useSoloStore } from '@/store/soloStore';
 
 export function SoloSetupScreen() {
@@ -91,41 +91,23 @@ export function SoloSetupScreen() {
           </button>
         )}
 
-        {/* 결정 방식 */}
-        <section>
-          <h2 className="mb-2.5 text-h3 text-ink-900">어떻게 정할까요?</h2>
-          <div className="bleed-x flex gap-2 overflow-x-auto no-scrollbar pb-1">
-            {SOLO_METHODS.map((item) => {
-              const selected = item.id === method;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setMethod(item.id)}
-                  className={`w-[132px] shrink-0 rounded-xl border p-3.5 text-left transition-all active:scale-[0.97] ${
-                    selected
-                      ? 'border-primary bg-primary-50'
-                      : 'border-line bg-surface active:bg-ink-50'
-                  }`}
-                >
-                  <span className="block text-[22px]" aria-hidden>
-                    {item.emoji}
-                  </span>
-                  <span
-                    className={`mt-2 block text-[15px] font-bold ${
-                      selected ? 'text-primary-700' : 'text-ink-900'
-                    }`}
-                  >
-                    {item.title}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-snug text-muted">
-                    {item.blurb}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        {/* 결정 방식 — 직접 고르는 쪽과 맡기는 쪽을 나눠 보여준다.
+            섞어두면 "어차피 다 랜덤" 으로 보인다. */}
+        <section className="space-y-5">
+          <MethodGroup
+            title="직접 골라서 정하기"
+            hint="내가 고른 결과"
+            methods={SOLO_METHODS.filter((m) => m.kind === 'play')}
+            selected={method}
+            onSelect={setMethod}
+          />
+          <MethodGroup
+            title="맡기고 바로 받기"
+            hint="누르면 끝"
+            methods={SOLO_METHODS.filter((m) => m.kind === 'instant')}
+            selected={method}
+            onSelect={setMethod}
+          />
         </section>
       </div>
 
@@ -148,5 +130,56 @@ export function SoloSetupScreen() {
         onSelect={setLocation}
       />
     </Screen>
+  );
+}
+
+function MethodGroup({
+  title,
+  hint,
+  methods,
+  selected,
+  onSelect,
+}: {
+  title: string;
+  hint: string;
+  methods: SoloMethodMeta[];
+  selected: SoloMethod;
+  onSelect: (id: SoloMethod) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-2.5 flex items-baseline gap-2">
+        <h2 className="text-h3 text-ink-900">{title}</h2>
+        <span className="text-sm text-muted">{hint}</span>
+      </div>
+      <div className="bleed-x flex gap-2 overflow-x-auto no-scrollbar pb-1">
+        {methods.map((item) => {
+          const active = item.id === selected;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => onSelect(item.id)}
+              className={`w-[132px] shrink-0 rounded-xl border p-3.5 text-left transition-all active:scale-[0.97] ${
+                active ? 'border-primary bg-primary-50' : 'border-line bg-surface active:bg-ink-50'
+              }`}
+            >
+              <span className="block text-[22px]" aria-hidden>
+                {item.emoji}
+              </span>
+              <span
+                className={`mt-2 block text-[15px] font-bold ${
+                  active ? 'text-primary-700' : 'text-ink-900'
+                }`}
+              >
+                {item.title}
+              </span>
+              <span className="mt-0.5 block text-xs leading-snug text-muted">{item.blurb}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

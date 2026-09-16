@@ -2,23 +2,89 @@ import { createRandom, hashString, seededShuffle } from '@/lib/random';
 import { walkingMinutes } from '@/lib/geo';
 import { CATEGORY_LABEL, type Restaurant } from '@/types/restaurant';
 
-export type SoloMethod = 'roulette' | 'fate' | 'category' | 'best' | 'popular';
+export type SoloMethod =
+  /** 직접 플레이하는 방식 */
+  | 'worldcup'
+  | 'swipe'
+  | 'ladder'
+  /** 누르면 바로 결과가 나오는 방식 */
+  | 'roulette'
+  | 'fate'
+  | 'category'
+  | 'best'
+  | 'popular';
 
 export interface SoloMethodMeta {
   id: SoloMethod;
   title: string;
   blurb: string;
   emoji: string;
+  /**
+   * play   — 화면에서 직접 고르거나 조작한다. 결과를 내가 만든다.
+   * instant — 누르면 바로 결정된다. 맡기는 쪽.
+   */
+  kind: 'play' | 'instant';
+  /** 이 방식이 성립하려면 필요한 최소 후보 수 */
+  minCandidates: number;
 }
 
-/** 혼자 정할 때 고를 수 있는 결정 방식 */
+/**
+ * 혼자 정할 때 고를 수 있는 방식.
+ *
+ * 앞의 셋은 실제로 플레이한다 — 내가 고른 결과가 나온다.
+ * 뒤의 다섯은 맡기는 쪽이다. 목록에서 두 묶음을 나눠 보여줘서,
+ * "어차피 다 랜덤" 으로 보이지 않게 한다.
+ */
 export const SOLO_METHODS: SoloMethodMeta[] = [
-  { id: 'roulette', title: '랜덤 룰렛', blurb: '조건 안에서 아무거나', emoji: '🎰' },
-  { id: 'fate', title: '오늘의 운명', blurb: '오늘은 여기로 정해져 있어요', emoji: '🍀' },
-  { id: 'category', title: '카테고리 뽑기', blurb: '종류부터 정하고 고르기', emoji: '🎲' },
-  { id: 'best', title: '조건 추천', blurb: '예산·거리·평점 종합', emoji: '🎯' },
-  { id: 'popular', title: '근처 인기', blurb: '평점 높은 순으로', emoji: '🔥' },
+  { id: 'worldcup', title: '음식 월드컵', blurb: '둘 중 하나씩 골라 결승까지', emoji: '🏆', kind: 'play', minCandidates: 4 },
+  { id: 'swipe', title: '넘기기', blurb: '한 장씩 넘기다 마음에 들면 멈추기', emoji: '💘', kind: 'play', minCandidates: 3 },
+  { id: 'ladder', title: '사다리 타기', blurb: '줄 하나 고르고 따라 내려가기', emoji: '🪜', kind: 'play', minCandidates: 3 },
+  { id: 'roulette', title: '랜덤 룰렛', blurb: '조건 안에서 아무거나', emoji: '🎰', kind: 'instant', minCandidates: 1 },
+  { id: 'fate', title: '오늘의 운명', blurb: '오늘은 여기로 정해져 있어요', emoji: '🍀', kind: 'instant', minCandidates: 1 },
+  { id: 'category', title: '카테고리 뽑기', blurb: '종류부터 정하고 고르기', emoji: '🎲', kind: 'instant', minCandidates: 1 },
+  { id: 'best', title: '조건 추천', blurb: '예산·거리·평점 종합', emoji: '🎯', kind: 'instant', minCandidates: 1 },
+  { id: 'popular', title: '근처 인기', blurb: '평점 높은 순으로', emoji: '🔥', kind: 'instant', minCandidates: 1 },
 ];
+
+export function soloMethod(id: SoloMethod): SoloMethodMeta {
+  return SOLO_METHODS.find((m) => m.id === id) ?? SOLO_METHODS[0];
+}
+
+/** 직접 플레이하는 방식인지 */
+export function isPlayable(id: SoloMethod): boolean {
+  return soloMethod(id).kind === 'play';
+}
+
+/**
+ * 종류가 골고루 섞인 후보를 고른다.
+ *
+ * 그냥 가까운 순으로 자르면 같은 골목의 비슷한 가게만 올라온다. 카테고리별로
+ * 돌아가며 가까운 순으로 한 곳씩 뽑아, 고를 맛이 있는 판을 만든다.
+ */
+export function diversePool(candidates: Restaurant[], size: number, seed: number): Restaurant[] {
+  const byCategory = new Map<string, Restaurant[]>();
+  for (const restaurant of [...candidates].sort((a, b) => a.distance - b.distance)) {
+    const list = byCategory.get(restaurant.category) ?? [];
+    list.push(restaurant);
+    byCategory.set(restaurant.category, list);
+  }
+
+  // 시작 카테고리를 시드로 돌려 매번 같은 조합이 나오지 않게 한다
+  const groups = seededShuffle([...byCategory.values()], seed);
+  const picked: Restaurant[] = [];
+
+  for (let round = 0; picked.length < size; round += 1) {
+    const before = picked.length;
+    for (const group of groups) {
+      if (picked.length >= size) break;
+      const next = group[round];
+      if (next) picked.push(next);
+    }
+    if (picked.length === before) break; // 더 뽑을 게 없다
+  }
+
+  return picked;
+}
 
 export interface SoloPick {
   winner: Restaurant;
@@ -39,6 +105,12 @@ export function pickRestaurant(
   if (candidates.length === 0) return null;
 
   switch (method) {
+    // 직접 플레이하는 방식은 화면에서 결정한다 — 여기서는 고르지 않는다
+    case 'worldcup':
+    case 'swipe':
+    case 'ladder':
+      return null;
+
     case 'roulette': {
       const pool = candidates.slice(0, 12);
       const rand = createRandom(seed);
