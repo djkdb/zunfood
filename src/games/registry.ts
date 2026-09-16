@@ -7,6 +7,7 @@ import { auctionGame } from './auction/logic';
 import { eliminationGame } from './elimination/logic';
 import { instinctGame } from './instinct/logic';
 import { telepathyGame } from './telepathy/logic';
+import { dartGame } from './dart/logic';
 
 /**
  * 게임 레지스트리.
@@ -19,6 +20,7 @@ import { telepathyGame } from './telepathy/logic';
  * 앱 전체가 "그냥 랜덤 뽑기" 로 읽힌다.
  */
 export const GAMES: GameMode<never>[] = [
+  dartGame as GameMode<never>,
   battleGame as GameMode<never>,
   eliminationGame as GameMode<never>,
   auctionGame as GameMode<never>,

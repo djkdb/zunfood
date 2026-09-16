@@ -128,6 +128,20 @@ export default function Wheel3D({
     const target = restOffset - Math.PI * 2 * TURNS;
 
     let frame = 0;
+    /**
+     * 화면에 안 보일 때는 그리지 않는다.
+     * 배터리를 아끼고, 여러 판이 동시에 도는 상황에서 프레임이 무너지지 않게 한다.
+     */
+    let visible = document.visibilityState === 'visible';
+    const onVisibility = () => {
+      const next = document.visibilityState === 'visible';
+      if (next === visible) return;
+      visible = next;
+      if (visible) render();
+      else cancelAnimationFrame(frame);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     const render = () => {
       let angle = 0;
       if (settled) {
@@ -146,7 +160,7 @@ export default function Wheel3D({
       wheel.rotation.z = Math.sin(Date.now() / 90) * 0.012 * settling;
 
       renderer.render(scene, camera);
-      frame = requestAnimationFrame(render);
+      if (visible) frame = requestAnimationFrame(render);
     };
     render();
 
@@ -158,6 +172,7 @@ export default function Wheel3D({
 
     return () => {
       cancelAnimationFrame(frame);
+      document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('resize', onResize);
       renderer.dispose();
       texture.dispose();

@@ -54,4 +54,6 @@ export const TIMING = {
   /** 이심전심 한 라운드 제한 시간 */
   telepathyPickMs: 15_000,
   telepathyRevealMs: 3_400,
+  /** 다트를 던질 수 있는 시간 */
+  dartWindowMs: 20_000,
 } as const;
