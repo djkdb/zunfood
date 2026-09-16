@@ -24,6 +24,14 @@ export const ENV = {
    * 기본은 카카오(무료, 일 10만). 서버에 키가 없으면 목업 데이터로 자동 폴백한다.
    */
   placesProvider: withDefault(raw.VITE_PLACES_PROVIDER, 'kakao'),
+  /**
+   * 카카오 지도 JavaScript 키 (지도에서 위치 고르기에 쓴다).
+   *
+   * REST 키와 다른 키다. 브라우저에 노출되는 게 정상이며, 카카오 개발자
+   * 콘솔의 [플랫폼 → Web] 에 등록한 도메인에서만 동작한다.
+   * 비어 있으면 지도 기능만 숨기고 나머지는 그대로 쓴다.
+   */
+  kakaoJsKey: withDefault(raw.VITE_KAKAO_JS_KEY, ''),
   /** 'mock' | 'http' — AI 판사 제공자 */
   aiJudgeProvider: withDefault(raw.VITE_AI_JUDGE_PROVIDER, 'mock'),
   /** AI 판결을 대신 호출해주는 서버 엔드포인트 (키는 서버에 보관) */

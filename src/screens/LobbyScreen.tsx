@@ -184,6 +184,8 @@ export function LobbyScreen({ room, players, isHost }: LobbyScreenProps) {
         open={locationOpen}
         onClose={() => setLocationOpen(false)}
         onSelect={saveLocation}
+        radius={room.radius}
+        current={room.location}
       />
 
       <Sheet open={conditionOpen} onClose={() => setConditionOpen(false)} title="먹을 조건">

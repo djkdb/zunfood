@@ -128,6 +128,8 @@ export function SoloSetupScreen() {
         open={locationOpen}
         onClose={() => setLocationOpen(false)}
         onSelect={setLocation}
+        radius={radius}
+        current={location}
       />
     </Screen>
   );

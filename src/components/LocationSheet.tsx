@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { MapPicker } from '@/components/MapPicker';
+import { isMapAvailable } from '@/lib/kakaoMap';
 import { Sheet } from '@/components/ui/Sheet';
 import { TextField } from '@/components/ui/TextField';
 import { getPlaceRepository, type PlaceSearchResult } from '@/data/places';
@@ -10,14 +12,25 @@ interface LocationSheetProps {
   open: boolean;
   onClose: () => void;
   onSelect: (location: PlaceLocation) => void;
+  /** 지도에 함께 그려줄 검색 반경 */
+  radius: number;
+  /** 지도를 열었을 때 처음 보여줄 위치 */
+  current?: PlaceLocation | null;
 }
 
 /**
  * 위치 선택 시트.
  * 브라우저 권한 팝업을 갑자기 띄우지 않고, 왜 필요한지 먼저 알려준 뒤 요청한다.
  */
-export function LocationSheet({ open, onClose, onSelect }: LocationSheetProps) {
+export function LocationSheet({
+  open,
+  onClose,
+  onSelect,
+  radius,
+  current,
+}: LocationSheetProps) {
   const [keyword, setKeyword] = useState('');
+  const [mapOpen, setMapOpen] = useState(false);
   const [results, setResults] = useState<PlaceSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const geo = useGeolocation();
@@ -88,6 +101,28 @@ export function LocationSheet({ open, onClose, onSelect }: LocationSheetProps) {
         </span>
       </button>
 
+      {/* 지도 키가 없으면 이 줄은 나타나지 않는다 — 눌러도 안 되는 버튼을 두지 않는다 */}
+      {isMapAvailable() && (
+        <button
+          type="button"
+          onClick={() => setMapOpen(true)}
+          className="mt-2 flex w-full items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left active:bg-ink-50"
+        >
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink-100 text-[19px]">
+            🗺️
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-h3 text-ink-900">지도에서 고르기</span>
+            <span className="mt-0.5 block text-sm text-muted">
+              핀을 옮겨 원하는 지점으로
+            </span>
+          </span>
+          <span aria-hidden className="shrink-0 text-ink-300">
+            ›
+          </span>
+        </button>
+      )}
+
       {geo.error && (
         <div className="mt-3 rounded-lg bg-danger/8 p-3.5">
           <p className="text-sm font-semibold text-danger">{geo.error}</p>
@@ -139,6 +174,14 @@ export function LocationSheet({ open, onClose, onSelect }: LocationSheetProps) {
       <Button variant="ghost" size="md" block className="mt-2" onClick={onClose}>
         닫기
       </Button>
+
+      <MapPicker
+        open={mapOpen}
+        onClose={() => setMapOpen(false)}
+        onSelect={pick}
+        initial={current}
+        radius={radius}
+      />
     </Sheet>
   );
 }

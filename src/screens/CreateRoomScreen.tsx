@@ -169,6 +169,8 @@ export function CreateRoomScreen() {
         open={locationOpen}
         onClose={() => setLocationOpen(false)}
         onSelect={setLocationValue}
+        radius={radius}
+        current={location}
       />
 
       <Sheet open={conditionOpen} onClose={() => setConditionOpen(false)} title="먹을 조건">

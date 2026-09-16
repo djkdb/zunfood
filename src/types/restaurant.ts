@@ -90,7 +90,7 @@ export interface PlaceLocation extends GeoPoint {
   /** 예: "충북대학교 중문" */
   name: string;
   /** 위치를 어떻게 얻었는지 */
-  source: 'current' | 'campus' | 'search' | 'default';
+  source: 'current' | 'campus' | 'search' | 'map' | 'default';
   address?: string;
 }
 
