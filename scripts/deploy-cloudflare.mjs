@@ -16,18 +16,33 @@ import { spawn } from 'node:child_process';
 /** 승격할 환경변수. VITE_ 접두사가 없으므로 브라우저 번들에는 들어가지 않는다. */
 const SECRETS = ['DATABASE_URL', 'KAKAO_REST_API_KEY', 'GOOGLE_PLACES_API_KEY'];
 
-const WRANGLER = process.env.WRANGLER_BIN ?? 'wrangler';
+/**
+ * wrangler 실행.
+ *
+ * 이 저장소는 wrangler 를 의존성으로 두지 않고 npx 로 받아 쓴다.
+ * `wrangler` 를 직접 spawn 하면 PATH 에 없어 ENOENT 로 즉사한다.
+ * (테스트에서는 WRANGLER_BIN 으로 가짜 실행 파일을 끼워 넣는다.)
+ */
+const OVERRIDE = process.env.WRANGLER_BIN;
 
 function run(args, { input } = {}) {
+  const command = OVERRIDE ?? 'npx';
+  const argv = OVERRIDE ? args : ['--yes', 'wrangler', ...args];
+
   return new Promise((resolve) => {
-    const child = spawn(WRANGLER, args, {
+    console.log(`\n$ ${command} ${argv.join(' ')}`);
+    const child = spawn(command, argv, {
       stdio: [input === undefined ? 'inherit' : 'pipe', 'inherit', 'inherit'],
     });
     if (input !== undefined) {
       child.stdin.end(input);
     }
     child.on('close', (code) => resolve(code ?? 1));
-    child.on('error', () => resolve(1));
+    child.on('error', (error) => {
+      // 여기서 조용히 끝나면 "왜 실패했는지" 가 로그에 남지 않는다
+      console.error(`✘ ${command} 를 실행하지 못했습니다: ${error.message}`);
+      resolve(1);
+    });
   });
 }
 
