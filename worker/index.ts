@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { handleApi } from '../server/api';
 import { handlePlaces, probeKakao } from '../server/places';
 import { diagnoseEnv } from './diagnose';
+import { renderStatusPage } from './status-page';
 import { fetchPhoto } from '../server/places-google';
 import type { Sql } from '../server/sql';
 
@@ -41,6 +42,29 @@ export default {
      * ?probe=1 을 붙이면 그 키로 카카오에 실제 호출을 한 번 넣어보고,
      * 카카오가 왜 거부하는지(키 오류 / 카카오맵 미사용 / 한도 초과)까지 알려준다.
      */
+    // 사람이 읽는 설정 점검 페이지. 폰에서 열어 한눈에 보라고 만든 것이다.
+    // (SPA 라우트보다 먼저 잡아야 앱이 가로채지 않는다)
+    if (url.pathname === '/status') {
+      const diagnosis = diagnoseEnv(env as unknown as Record<string, unknown>);
+      return new Response(
+        renderStatusPage({
+          host: url.host,
+          database: Boolean(env.DATABASE_URL),
+          kakao: Boolean(env.KAKAO_REST_API_KEY),
+          google: Boolean(env.GOOGLE_PLACES_API_KEY),
+          diagnosis,
+        }),
+        {
+          status: 200,
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+            'cache-control': 'no-store',
+            'x-robots-tag': 'noindex',
+          },
+        },
+      );
+    }
+
     if (url.pathname === '/api/status') {
       const diagnosis = diagnoseEnv(env as unknown as Record<string, unknown>);
       const body: Record<string, unknown> = {

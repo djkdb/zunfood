@@ -30,9 +30,13 @@ export interface EnvDiagnosis {
   /** Worker 에 실제로 도달한 바인딩 이름 (값은 없다) */
   bindings: string[];
   shapes: Record<string, ValueShape>;
-  /** 사람이 읽고 바로 조치할 수 있는 한 줄 */
+  /** 발견된 문제들. 비어 있으면 설정이 온전하다는 뜻이다 */
+  problems: string[];
+  /** problems 를 한 줄로 합친 것 */
   summary: string;
 }
+
+const ALL_GOOD = '필요한 Secret 이 모두 정상 형식으로 도달했습니다.';
 
 export function diagnoseEnv(env: Record<string, unknown>): EnvDiagnosis {
   const bindings = Object.keys(env).sort();
@@ -49,26 +53,32 @@ export function diagnoseEnv(env: Record<string, unknown>): EnvDiagnosis {
     };
   }
 
-  return { bindings, shapes, summary: summarize(env, bindings, shapes) };
+  const problems = findProblems(env, bindings, shapes);
+  return {
+    bindings,
+    shapes,
+    problems,
+    summary: problems.length === 0 ? ALL_GOOD : problems.join(' / '),
+  };
 }
 
-function summarize(
+function findProblems(
   env: Record<string, unknown>,
   bindings: string[],
   shapes: Record<string, ValueShape>,
-): string {
+): string[] {
   const problems: string[] = [];
   const present = (name: string) => typeof env[name] === 'string' && String(env[name]).trim() !== '';
 
   // 1) 런타임 변수가 아예 없다 — 가장 흔한 원인은 Text 타입으로 넣은 것이다
   const stringVars = bindings.filter((n) => !NON_SECRET_BINDINGS.includes(n) && typeof env[n] === 'string');
   if (stringVars.length === 0) {
-    return (
+    return [
       'Worker 에 런타임 변수가 하나도 도달하지 않았습니다. ' +
       'Settings → Variables and Secrets 에서 Type 을 반드시 [Secret] 으로 넣어주세요 — ' +
       'Text 로 넣은 값은 다음 배포 때 지워집니다. ' +
-      'Build 쪽 Variables 칸은 빌드 중에만 존재하므로 여기서는 보이지 않습니다.'
-    );
+      'Build 쪽 Variables 칸은 빌드 중에만 존재하므로 여기서는 보이지 않습니다.',
+    ];
   }
 
   // 2) 이름이 비슷하지만 다른 변수
@@ -109,10 +119,7 @@ function summarize(
     problems.push("DATABASE_URL 이 'postgresql://' 로 시작하지 않습니다. Neon 의 connection string 을 그대로 넣어주세요.");
   }
 
-  if (problems.length === 0) {
-    return '필요한 Secret 이 모두 정상 형식으로 도달했습니다. ?probe=1 을 붙여 카카오 응답까지 확인해 보세요.';
-  }
-  return problems.join(' / ');
+  return problems;
 }
 
 /** 이름 비교용 — 대소문자와 구분기호 차이를 무시한다 */
