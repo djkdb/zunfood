@@ -8,6 +8,9 @@ import { eliminationGame } from './elimination/logic';
 import { instinctGame } from './instinct/logic';
 import { telepathyGame } from './telepathy/logic';
 import { dartGame } from './dart/logic';
+import { clawGame } from './claw/logic';
+import { raceGame } from './race/logic';
+import { fishingGame } from './fishing/logic';
 
 /**
  * 게임 레지스트리.
@@ -21,6 +24,9 @@ import { dartGame } from './dart/logic';
  */
 export const GAMES: GameMode<never>[] = [
   dartGame as GameMode<never>,
+  clawGame as GameMode<never>,
+  raceGame as GameMode<never>,
+  fishingGame as GameMode<never>,
   battleGame as GameMode<never>,
   eliminationGame as GameMode<never>,
   auctionGame as GameMode<never>,

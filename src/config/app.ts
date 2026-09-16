@@ -56,4 +56,8 @@ export const TIMING = {
   telepathyRevealMs: 3_400,
   /** 다트를 던질 수 있는 시간 */
   dartWindowMs: 20_000,
+  /** 뽑기 기계를 조작할 수 있는 시간 */
+  clawWindowMs: 22_000,
+  /** 달리기 연타 시간 */
+  raceMs: 8_000,
 } as const;

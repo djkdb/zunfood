@@ -10,7 +10,10 @@ export type GameId =
   | 'elimination'
   | 'instinct'
   | 'telepathy'
-  | 'dart';
+  | 'dart'
+  | 'claw'
+  | 'race'
+  | 'fishing';
 
 /** 참가자가 호스트에게 보내는 액션 (실시간 채널을 통해 전달) */
 export interface GameAction<P = Record<string, unknown>> {

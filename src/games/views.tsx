@@ -9,6 +9,9 @@ import { EliminationView } from './elimination/View';
 import { InstinctView } from './instinct/View';
 import { TelepathyView } from './telepathy/View';
 import { DartView } from './dart/View';
+import { ClawView } from './claw/View';
+import { RaceView } from './race/View';
+import { FishingView } from './fishing/View';
 
 /**
  * 게임 id → 화면 컴포넌트 매핑.
@@ -24,4 +27,7 @@ export const GAME_VIEWS: Record<GameId, ComponentType<GameViewProps<never>>> = {
   instinct: InstinctView as ComponentType<GameViewProps<never>>,
   telepathy: TelepathyView as ComponentType<GameViewProps<never>>,
   dart: DartView as ComponentType<GameViewProps<never>>,
+  claw: ClawView as ComponentType<GameViewProps<never>>,
+  race: RaceView as ComponentType<GameViewProps<never>>,
+  fishing: FishingView as ComponentType<GameViewProps<never>>,
 };
