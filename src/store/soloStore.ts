@@ -114,8 +114,9 @@ export const useSoloStore = create<SoloState>((set, get) => ({
         location,
         radius,
         filters,
-        // 후보는 넉넉할수록 좋다 — 월드컵·스와이프 같은 방식이 고를 거리가 생긴다
-        limit: 90,
+        // 후보는 넉넉할수록 좋다 — 월드컵·넘기기가 고를 거리가 생기고,
+        // 반경을 넓혔을 때 그만큼 넓게 담긴다
+        limit: 120,
       });
 
       if (candidates.length === 0) {

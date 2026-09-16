@@ -25,8 +25,21 @@ const MAX_RADIUS_M = 20_000;
 const PAGES_PER_GROUP = 3;
 const PAGE_SIZE = 15;
 /** 한 번에 돌려줄 수 있는 최대 개수 */
-const MAX_LIMIT = CATEGORY_GROUPS.length * PAGES_PER_GROUP * PAGE_SIZE;
+const MAX_LIMIT = 120;
 const DEFAULT_LIMIT = 60;
+/**
+ * 한 번의 검색에서 카카오에 보낼 수 있는 최대 요청 수.
+ * Cloudflare Workers 는 요청 하나당 바깥 호출이 50개로 제한된다.
+ * 구글·DB 호출 몫을 남겨두고 넉넉히 아래로 잡는다.
+ */
+const MAX_REQUESTS = 30;
+/** 이 반경 이하에서는 나눠 훑을 필요가 없다 */
+const TILE_MIN_RADIUS = 600;
+/** 구역 중심을 놓을 위치 (반경 대비 비율) */
+const TILE_RINGS = [0.5, 0.9];
+const TILES_PER_RING = 6;
+/** 각 구역이 훑는 반경 (전체 반경 대비) */
+const TILE_RATIO = 0.45;
 
 export interface KakaoPlace {
   id: string;
@@ -229,6 +242,17 @@ function roughDistance(lat1: number, lng1: number, lat2: number, lng2: number): 
   return Math.sqrt(dLat * dLat + dLng * dLng);
 }
 
+/**
+ * 카카오 로컬 검색.
+ *
+ * ⚠️ 카카오는 한 번의 검색에 **반경과 무관하게 최대 45건**만 준다(15 × 3페이지).
+ * 가까운 순으로 45건이므로, 반경을 2km 로 넓혀도 실제로는 가장 가까운 300m
+ * 남짓만 보게 된다. "2km 로 했는데 몇 곳만 나온다" 가 이 때문이다.
+ *
+ * 그래서 중심에서 한 번 훑어보고, 45건을 꽉 채웠으면(= 더 있다는 뜻) 반경을
+ * 구역으로 나눠 각 구역을 따로 검색한다. 한산한 동네는 중심 검색만으로 끝나서
+ * 호출을 낭비하지 않는다.
+ */
 export async function searchKakao(input: {
   lat: number;
   lng: number;
@@ -237,53 +261,162 @@ export async function searchKakao(input: {
   apiKey: string;
 }): Promise<Restaurant[]> {
   const { lat, lng, radius, limit, apiKey } = input;
+  const origin = { lat, lng };
+  const budget = { left: MAX_REQUESTS };
+
+  const center = await searchArea(
+    { lat, lng, radius, origin, apiKey, maxPages: PAGES_PER_GROUP },
+    budget,
+  );
+
+  // 꽉 차지 않았으면 이 반경 안의 식당을 이미 다 본 것이다
+  if (!center.saturated || radius <= TILE_MIN_RADIUS) {
+    return spreadAcross([center.restaurants], limit);
+  }
+
+  // 바깥쪽을 구역으로 나눠 따로 훑는다 (구역마다 45건 한도가 새로 생긴다)
+  const areas = await Promise.all(
+    tilePoints(lat, lng, radius).map((point) =>
+      searchArea(
+        { ...point, radius: radius * TILE_RATIO, origin, apiKey, maxPages: 1 },
+        budget,
+      ),
+    ),
+  );
+
+  // 한 구역이 결과를 독차지하지 않도록 구역끼리 번갈아 가져온다.
+  // 거리순으로 그냥 자르면 다시 가까운 곳만 남아 넓힌 의미가 없다.
+  return spreadAcross([center.restaurants, ...areas.map((a) => a.restaurants)], limit);
+}
+
+interface AreaResult {
+  restaurants: Restaurant[];
+  /** 카카오가 줄 수 있는 만큼 꽉 채웠는지 — 이 구역에 더 있다는 뜻 */
+  saturated: boolean;
+}
+
+/** 한 지점을 중심으로 음식점·카페를 훑는다 */
+async function searchArea(
+  input: {
+    lat: number;
+    lng: number;
+    radius: number;
+    origin: { lat: number; lng: number };
+    apiKey: string;
+    maxPages: number;
+  },
+  budget: { left: number },
+): Promise<AreaResult> {
+  const { lat, lng, radius, origin, apiKey, maxPages } = input;
+  const restaurants: Restaurant[] = [];
   const seen = new Set<string>();
-  const collected: Restaurant[] = [];
+  let saturated = false;
 
   for (const group of CATEGORY_GROUPS) {
-    // 후보는 많을수록 좋다. 카카오가 주는 만큼(그룹당 45건) 끝까지 받아온다.
-    for (let page = 1; page <= PAGES_PER_GROUP; page += 1) {
-      // 이미 필요한 만큼 모았으면 더 요청하지 않는다 (할당량 낭비)
-      if (collected.length >= limit && group !== CATEGORY_GROUPS[0]) break;
-      const url = new URL(ENDPOINT);
-      url.searchParams.set('category_group_code', group);
-      url.searchParams.set('x', String(lng));
-      url.searchParams.set('y', String(lat));
-      url.searchParams.set('radius', String(radius));
-      url.searchParams.set('sort', 'distance');
-      url.searchParams.set('size', String(PAGE_SIZE));
-      url.searchParams.set('page', String(page));
+    for (let page = 1; page <= maxPages; page += 1) {
+      if (budget.left <= 0) return { restaurants, saturated };
+      budget.left -= 1;
 
-      let response: Response;
-      try {
-        response = await fetch(url.toString(), {
-          headers: { Authorization: `KakaoAK ${apiKey}` },
-        });
-      } catch {
-        throw new PlacesError(502, 'network', '식당 정보를 불러오지 못했어요.');
-      }
-
-      // 오류 분류는 한 곳에서만 한다 — 상태 코드와 본문을 함께 봐야 정확하다
-      if (!response.ok) {
-        throw new PlacesError(...(await classifyKakaoFailure(response)));
-      }
-
-      const body = (await response.json()) as {
-        documents?: KakaoPlace[];
-        meta?: { is_end?: boolean };
-      };
-
+      const body = await fetchPage({ group, lat, lng, radius, page, apiKey });
       for (const doc of body.documents ?? []) {
         if (seen.has(doc.id)) continue;
         seen.add(doc.id);
-        collected.push(toRestaurant(doc));
+        restaurants.push(toRestaurant(doc, origin));
       }
 
       if (body.meta?.is_end) break;
+      // 마지막 페이지까지 왔는데 끝이 아니면 더 있다는 뜻
+      if (page === maxPages) saturated = true;
     }
   }
 
-  return collected.sort((a, b) => a.distance - b.distance).slice(0, limit);
+  return { restaurants, saturated };
+}
+
+async function fetchPage(input: {
+  group: string;
+  lat: number;
+  lng: number;
+  radius: number;
+  page: number;
+  apiKey: string;
+}): Promise<{ documents?: KakaoPlace[]; meta?: { is_end?: boolean } }> {
+  const url = new URL(ENDPOINT);
+  url.searchParams.set('category_group_code', input.group);
+  url.searchParams.set('x', String(input.lng));
+  url.searchParams.set('y', String(input.lat));
+  url.searchParams.set('radius', String(Math.round(input.radius)));
+  url.searchParams.set('sort', 'distance');
+  url.searchParams.set('size', String(PAGE_SIZE));
+  url.searchParams.set('page', String(input.page));
+
+  let response: Response;
+  try {
+    response = await fetch(url.toString(), {
+      headers: { Authorization: `KakaoAK ${input.apiKey}` },
+    });
+  } catch {
+    throw new PlacesError(502, 'network', '식당 정보를 불러오지 못했어요.');
+  }
+
+  // 오류 분류는 한 곳에서만 한다 — 상태 코드와 본문을 함께 봐야 정확하다
+  if (!response.ok) {
+    throw new PlacesError(...(await classifyKakaoFailure(response)));
+  }
+
+  return (await response.json()) as { documents?: KakaoPlace[]; meta?: { is_end?: boolean } };
+}
+
+/**
+ * 반경을 덮는 구역 중심점들.
+ *
+ * 중심에서 거리 두 개(반경의 50% · 90%)에 육각형으로 6개씩. 각 구역은 반경의
+ * 45% 를 훑으므로 서로 겹치면서 원 전체를 덮는다.
+ */
+function tilePoints(lat: number, lng: number, radius: number): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = [];
+  const metersPerDegLng = 111_320 * Math.cos((lat * Math.PI) / 180);
+
+  for (const ratio of TILE_RINGS) {
+    const distance = radius * ratio;
+    for (let i = 0; i < TILES_PER_RING; i += 1) {
+      // 링마다 각도를 반 칸 어긋나게 해서 방사형으로 뭉치지 않게 한다
+      const angle = (2 * Math.PI * i) / TILES_PER_RING + (ratio * Math.PI) / TILES_PER_RING;
+      points.push({
+        lat: lat + (distance * Math.cos(angle)) / 111_320,
+        lng: lng + (distance * Math.sin(angle)) / metersPerDegLng,
+      });
+    }
+  }
+  return points;
+}
+
+/**
+ * 여러 구역의 결과를 번갈아 담아 한도까지 채운다.
+ *
+ * 합쳐서 거리순으로 자르면 결국 가까운 구역이 다 차지한다. 구역별로 한 곳씩
+ * 돌아가며 담아야 넓힌 반경이 결과에 실제로 반영된다.
+ */
+export function spreadAcross(buckets: Restaurant[][], limit: number): Restaurant[] {
+  const sorted = buckets.map((bucket) =>
+    [...bucket].sort((a, b) => a.distance - b.distance),
+  );
+  const seen = new Set<string>();
+  const picked: Restaurant[] = [];
+
+  for (let round = 0; picked.length < limit; round += 1) {
+    const before = picked.length;
+    for (const bucket of sorted) {
+      if (picked.length >= limit) break;
+      const next = bucket[round];
+      if (!next || seen.has(next.id)) continue;
+      seen.add(next.id);
+      picked.push(next);
+    }
+    if (picked.length === before) break; // 모든 구역이 바닥났다
+  }
+
+  return picked.sort((a, b) => a.distance - b.distance);
 }
 
 /**
@@ -320,7 +453,13 @@ async function classifyKakaoFailure(
   return [502, 'unknown', '식당 정보를 불러오지 못했어요.'];
 }
 
-export function toRestaurant(doc: KakaoPlace): Restaurant {
+/**
+ * 카카오 문서 → 앱 식당.
+ *
+ * 카카오가 주는 distance 는 "검색에 쓴 좌표" 기준이다. 구역을 나눠 검색하면
+ * 구역 중심 기준이 되어버리므로, 사용자의 실제 위치(origin)로 다시 계산한다.
+ */
+export function toRestaurant(doc: KakaoPlace, origin?: { lat: number; lng: number }): Restaurant {
   return {
     id: `kakao_${doc.id}`,
     name: doc.place_name,
@@ -333,7 +472,11 @@ export function toRestaurant(doc: KakaoPlace): Restaurant {
     priceRange: 0,
     priceLevel: null,
     isOpen: null,
-    distance: doc.distance ? Number(doc.distance) : 0,
+    distance: origin
+      ? Math.round(roughDistance(origin.lat, origin.lng, Number(doc.y), Number(doc.x)))
+      : doc.distance
+        ? Number(doc.distance)
+        : 0,
     menu: [],
     tags: doc.category_name
       .split('>')
