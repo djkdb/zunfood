@@ -109,7 +109,8 @@ export const useSoloStore = create<SoloState>((set, get) => ({
         location,
         radius,
         filters,
-        limit: 30,
+        // 후보는 넉넉할수록 좋다 — 월드컵·스와이프 같은 방식이 고를 거리가 생긴다
+        limit: 90,
       });
 
       if (candidates.length === 0) {

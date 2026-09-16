@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { ROOM } from '@/config/app';
 import { getRestaurantRepository, RestaurantSearchError } from '@/data/restaurants';
-import { getGame, MAX_CANDIDATES } from '@/games/registry';
+import { getGame, ROOM_CANDIDATES } from '@/games/registry';
 import { uid } from '@/lib/id';
 import { getRoomBackend } from '@/realtime';
 import { HostEngine, isGameEnvelope, type GameEnvelope } from '@/realtime/HostEngine';
@@ -284,7 +284,7 @@ export const useRoomStore = create<RoomStoreState>((set, get) => {
           location: snapshot.room.location,
           radius: snapshot.room.radius,
           filters: snapshot.room.filters,
-          limit: MAX_CANDIDATES,
+          limit: ROOM_CANDIDATES,
         });
 
         if (candidates.length < 2) {

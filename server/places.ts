@@ -17,6 +17,16 @@ const ENDPOINT = 'https://dapi.kakao.com/v2/local/search/category.json';
 /** FD6 = 음식점, CE7 = 카페 */
 const CATEGORY_GROUPS = ['FD6', 'CE7'] as const;
 const MAX_RADIUS_M = 20_000;
+/**
+ * 카카오 로컬 API 는 한 조건당 최대 45건(15건 × 3페이지)까지만 준다.
+ * 그래서 그룹마다 끝까지 긁어서 음식점 45 + 카페 45 = 최대 90곳을 모은다.
+ * (is_end 를 만나면 남은 페이지는 요청하지 않는다)
+ */
+const PAGES_PER_GROUP = 3;
+const PAGE_SIZE = 15;
+/** 한 번에 돌려줄 수 있는 최대 개수 */
+const MAX_LIMIT = CATEGORY_GROUPS.length * PAGES_PER_GROUP * PAGE_SIZE;
+const DEFAULT_LIMIT = 60;
 
 export interface KakaoPlace {
   id: string;
@@ -93,7 +103,7 @@ export async function handlePlaces(
   const lat = Number(params.get('lat'));
   const lng = Number(params.get('lng'));
   const radius = Math.min(MAX_RADIUS_M, Math.max(50, Number(params.get('radius')) || 500));
-  const limit = Math.min(45, Math.max(1, Number(params.get('limit')) || 30));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, Number(params.get('limit')) || DEFAULT_LIMIT));
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
     return json({ error: 'bad_request', message: '좌표가 올바르지 않습니다.' }, 400);
@@ -105,29 +115,40 @@ export async function handlePlaces(
   const provider = await chooseProvider(resolved, options);
 
   try {
-    let restaurants: Restaurant[];
-    if (provider === 'google') {
-      try {
-        restaurants = await searchGoogle({
-          lat, lng, radius, limit, apiKey: resolved.google as string,
-        });
-      } catch (error) {
-        // 구글이 실패해도 카카오가 있으면 게임은 계속되게 한다
-        if (!resolved.kakao) throw error;
-        return json(
-          { provider: 'kakao', restaurants: await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao }) },
-          200,
-          { 'cache-control': 'public, max-age=300' },
-        );
+    const search = { lat, lng, radius, limit };
+
+    // 구글은 한 번에 최대 20곳까지만 준다(API 상한). 카카오는 90곳까지 준다.
+    // 둘 다 쓸 수 있으면 같이 불러서, 넓이는 카카오로 채우고 평점·사진은 구글에서 얻는다.
+    if (provider === 'google' && resolved.kakao) {
+      const [google, kakao] = await Promise.allSettled([
+        searchGoogle({ ...search, apiKey: resolved.google as string }),
+        searchKakao({ ...search, apiKey: resolved.kakao }),
+      ]);
+
+      const rich = google.status === 'fulfilled' ? google.value : [];
+      const wide = kakao.status === 'fulfilled' ? kakao.value : [];
+
+      // 둘 다 실패하면 구글 쪽 실패 이유를 그대로 올린다
+      if (rich.length === 0 && wide.length === 0 && google.status === 'rejected') {
+        throw google.reason;
       }
-    } else {
-      restaurants = await searchKakao({ lat, lng, radius, limit, apiKey: resolved.kakao as string });
+
+      return json(
+        { provider: rich.length > 0 ? 'google+kakao' : 'kakao', restaurants: merge(rich, wide, limit) },
+        200,
+        { 'cache-control': 'public, max-age=300' },
+      );
     }
+
+    const restaurants =
+      provider === 'google'
+        ? await searchGoogle({ ...search, apiKey: resolved.google as string })
+        : await searchKakao({ ...search, apiKey: resolved.kakao as string });
 
     return json(
       { provider, restaurants },
       200,
-      // 같은 지점을 다시 검색해도 카카오 할당량을 다시 쓰지 않도록 잠깐 캐시한다
+      // 같은 지점을 다시 검색해도 할당량을 다시 쓰지 않도록 잠깐 캐시한다
       { 'cache-control': 'public, max-age=300' },
     );
   } catch (error) {
@@ -166,6 +187,48 @@ async function chooseProvider(
   }
 }
 
+/** 같은 가게로 볼 만큼 가까운 거리(m) */
+const SAME_PLACE_M = 80;
+
+/**
+ * 두 제공자의 결과를 합친다.
+ *
+ * 정보가 많은 쪽(구글)을 먼저 담고, 거기 없는 가게만 카카오에서 채운다.
+ * 같은 가게가 양쪽에 있으면 이름과 위치로 알아내 한 번만 넣는다 — 이름 표기가
+ * 조금 달라도("연탄불 삼겹살" / "연탄불삼겹살") 같은 곳으로 본다.
+ */
+export function merge(rich: Restaurant[], wide: Restaurant[], limit: number): Restaurant[] {
+  const merged = [...rich];
+  const seen = rich.map((r) => ({ key: nameKey(r.name), lat: r.latitude, lng: r.longitude }));
+
+  for (const candidate of wide) {
+    const key = nameKey(candidate.name);
+    const duplicate = seen.some(
+      (other) =>
+        other.key === key &&
+        roughDistance(other.lat, other.lng, candidate.latitude, candidate.longitude) <
+          SAME_PLACE_M,
+    );
+    if (duplicate) continue;
+    seen.push({ key, lat: candidate.latitude, lng: candidate.longitude });
+    merged.push(candidate);
+  }
+
+  return merged.sort((a, b) => a.distance - b.distance).slice(0, limit);
+}
+
+/** 표기 차이를 무시한 이름 비교용 키 */
+function nameKey(name: string): string {
+  return name.toLowerCase().replace(/[\s·.,'"()\-_]/g, '');
+}
+
+/** 짧은 거리 비교용 근사값(m). 정확한 거리는 필요 없다 */
+function roughDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const dLat = (lat1 - lat2) * 111_320;
+  const dLng = (lng1 - lng2) * 111_320 * Math.cos((lat1 * Math.PI) / 180);
+  return Math.sqrt(dLat * dLat + dLng * dLng);
+}
+
 export async function searchKakao(input: {
   lat: number;
   lng: number;
@@ -178,17 +241,17 @@ export async function searchKakao(input: {
   const collected: Restaurant[] = [];
 
   for (const group of CATEGORY_GROUPS) {
-    // 음식점은 후보가 많아야 하므로 최대 2페이지까지 본다 (카페는 1페이지면 충분)
-    const pages = group === 'FD6' ? 2 : 1;
-
-    for (let page = 1; page <= pages; page += 1) {
+    // 후보는 많을수록 좋다. 카카오가 주는 만큼(그룹당 45건) 끝까지 받아온다.
+    for (let page = 1; page <= PAGES_PER_GROUP; page += 1) {
+      // 이미 필요한 만큼 모았으면 더 요청하지 않는다 (할당량 낭비)
+      if (collected.length >= limit && group !== CATEGORY_GROUPS[0]) break;
       const url = new URL(ENDPOINT);
       url.searchParams.set('category_group_code', group);
       url.searchParams.set('x', String(lng));
       url.searchParams.set('y', String(lat));
       url.searchParams.set('radius', String(radius));
       url.searchParams.set('sort', 'distance');
-      url.searchParams.set('size', '15');
+      url.searchParams.set('size', String(PAGE_SIZE));
       url.searchParams.set('page', String(page));
 
       let response: Response;

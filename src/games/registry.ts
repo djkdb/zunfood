@@ -29,5 +29,13 @@ export function isPlayable(game: GameMode<never>, playerCount: number): boolean 
   return playerCount >= game.minPlayers && playerCount <= game.maxPlayers;
 }
 
-/** 선택된 게임들이 필요로 하는 최대 후보 수 */
+/** 게임 하나가 실제로 쓰는 최대 후보 수 */
 export const MAX_CANDIDATES = Math.max(...GAMES.map((g) => g.candidateCount));
+
+/**
+ * 방이 미리 받아두는 후보 수.
+ *
+ * 게임은 이 중 일부만 쓰지만, 후보 목록에서 주변 식당을 둘러보거나 다시
+ * 결정할 때 매번 같은 열 곳만 나오면 금방 질린다. 넉넉히 받아둔다.
+ */
+export const ROOM_CANDIDATES = 40;
