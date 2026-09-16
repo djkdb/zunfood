@@ -49,4 +49,9 @@ export const TIMING = {
   auctionRevealMs: 4_600,
   /** 지우기 한 차례 제한 시간 */
   eliminationTurnMs: 15_000,
+  /** 눈치 게임에서 후보 한 장이 떠 있는 시간 */
+  instinctRoundMs: 3_200,
+  /** 이심전심 한 라운드 제한 시간 */
+  telepathyPickMs: 15_000,
+  telepathyRevealMs: 3_400,
 } as const;

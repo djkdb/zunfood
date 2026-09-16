@@ -5,6 +5,8 @@ import { judgeGame } from './judge/logic';
 import { fateGame } from './fate/logic';
 import { auctionGame } from './auction/logic';
 import { eliminationGame } from './elimination/logic';
+import { instinctGame } from './instinct/logic';
+import { telepathyGame } from './telepathy/logic';
 
 /**
  * 게임 레지스트리.
@@ -20,6 +22,8 @@ export const GAMES: GameMode<never>[] = [
   battleGame as GameMode<never>,
   eliminationGame as GameMode<never>,
   auctionGame as GameMode<never>,
+  instinctGame as GameMode<never>,
+  telepathyGame as GameMode<never>,
   judgeGame as GameMode<never>,
   rouletteGame as GameMode<never>,
   fateGame as GameMode<never>,

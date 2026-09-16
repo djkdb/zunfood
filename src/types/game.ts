@@ -7,7 +7,9 @@ export type GameId =
   | 'judge'
   | 'fate'
   | 'auction'
-  | 'elimination';
+  | 'elimination'
+  | 'instinct'
+  | 'telepathy';
 
 /** 참가자가 호스트에게 보내는 액션 (실시간 채널을 통해 전달) */
 export interface GameAction<P = Record<string, unknown>> {
