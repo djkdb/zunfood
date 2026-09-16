@@ -14,7 +14,14 @@
 import { spawn } from 'node:child_process';
 
 /** 승격할 환경변수. VITE_ 접두사가 없으므로 브라우저 번들에는 들어가지 않는다. */
-const SECRETS = ['DATABASE_URL', 'KAKAO_REST_API_KEY', 'GOOGLE_PLACES_API_KEY'];
+const SECRETS = [
+  'DATABASE_URL',
+  'KAKAO_REST_API_KEY',
+  'GOOGLE_PLACES_API_KEY',
+  // 키는 아니지만 같은 경로로 넘겨야 런타임에서 읽힌다.
+  // 구글 무료 한도를 넘기지 않게 조이는 값이라 배포 없이 바꿀 수 있어야 한다.
+  'GOOGLE_MONTHLY_LIMIT',
+];
 
 /**
  * wrangler 실행.
