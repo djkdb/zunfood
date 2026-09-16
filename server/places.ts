@@ -102,14 +102,7 @@ export async function handlePlaces(
     return json({ error: 'auth', message: '식당 데이터 API 키가 설정되지 않았습니다.' }, 500);
   }
 
-  // 구글은 무료 한도를 넘으면 과금된다. 한도에 닿으면 카카오로 조용히 내려간다.
-  let useGoogle = Boolean(resolved.google);
-  if (useGoogle && options.sql && options.googleMonthlyLimit) {
-    const allowed = await reserveGoogleCall(options.sql, options.googleMonthlyLimit);
-    if (!allowed && resolved.kakao) useGoogle = false;
-  }
-
-  const provider = useGoogle ? 'google' : 'kakao';
+  const provider = await chooseProvider(resolved, options);
 
   try {
     let restaurants: Restaurant[];
@@ -142,6 +135,34 @@ export async function handlePlaces(
       return json({ error: error.code, message: error.message }, error.status);
     }
     return json({ error: 'network', message: '식당 정보를 불러오지 못했어요.' }, 502);
+  }
+}
+
+/**
+ * 이번 요청에 쓸 제공자를 고른다.
+ *
+ * 구글은 무료 한도를 넘으면 과금되므로 호출 수를 DB 에 기록해 두고 한도에 닿으면
+ * 카카오로 내려간다. 다만 **이 계산이 실패해도 검색은 살아 있어야 한다.**
+ * 카운터는 비용을 지키기 위한 장치지 검색의 전제 조건이 아니다.
+ * (카운터가 try 밖에 있어서 api_usage 테이블이 없으면 요청 전체가 죽던 버그가 있었다.)
+ *
+ * 카운터를 믿을 수 없을 때는 비용이 드는 쪽이 아니라 무료인 쪽으로 기운다.
+ */
+async function chooseProvider(
+  keys: PlacesKeys,
+  options: PlacesOptions,
+): Promise<'google' | 'kakao'> {
+  if (!keys.google) return 'kakao';
+  if (!options.sql || !options.googleMonthlyLimit) return 'google';
+
+  try {
+    const allowed = await reserveGoogleCall(options.sql, options.googleMonthlyLimit);
+    if (allowed) return 'google';
+    return keys.kakao ? 'kakao' : 'google';
+  } catch (error) {
+    // 한도를 셀 수 없으면 과금되는 쪽을 쓰지 않는다. 카카오가 없으면 어쩔 수 없다.
+    console.error('[places] 사용량 카운터 실패 — 한도를 확인할 수 없습니다', error);
+    return keys.kakao ? 'kakao' : 'google';
   }
 }
 

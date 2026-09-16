@@ -18,7 +18,8 @@ const CAPABILITIES: Record<string, RestaurantCapabilities> = {
 const ERROR_MESSAGE: Record<string, string> = {
   auth: '식당 데이터 연결에 문제가 있어요. 잠시 후 다시 시도해 주세요.',
   quota: '오늘 식당 검색 한도를 다 썼어요. 내일 다시 시도해 주세요.',
-  network: '식당 정보를 불러오지 못했어요.',
+  network: '연결이 불안정해요. 잠시 후 다시 시도해 주세요.',
+  unknown: '식당 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
   bad_request: '위치 정보가 올바르지 않아요. 위치를 다시 정해주세요.',
 };
 

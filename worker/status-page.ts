@@ -136,7 +136,7 @@ export function renderStatusPage(input: StatusPageInput): string {
       var res = await fetch('/api/status?probe=1');
       var data = await res.json();
       var probe = data.probe || {};
-      var labels = { kakao: '카카오', google: '구글' };
+      var labels = { kakao: '카카오', google: '구글', database: '데이터베이스' };
       var lines = Object.keys(probe).map(function (name) {
         var p = probe[name] || {};
         return '[' + (labels[name] || name) + '] ' +
@@ -176,8 +176,8 @@ function probeSection(hasGoogle: boolean): string {
   return `<div class="card" style="padding:16px">
     <h2>키가 실제로 받아들여지는지</h2>
     <p class="meta" style="margin:0 0 12px">
-      설정된 ${hasGoogle ? '카카오와 구글에' : '카카오에'} 검색을 한 번씩 넣어봅니다.
-      각 할당량에서 1건을 씁니다.
+      설정된 ${hasGoogle ? '카카오와 구글에' : '카카오에'} 검색을 한 번씩 넣어보고,
+      데이터베이스에 테이블이 갖춰져 있는지도 확인합니다.
     </p>
     <button id="probe" type="button">확인해보기</button>
     <pre id="probe-out">아직 확인하지 않았습니다.</pre>

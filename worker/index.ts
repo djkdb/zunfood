@@ -4,6 +4,7 @@ import { handlePlaces, probeKakao } from '../server/places';
 import { diagnoseEnv } from './diagnose';
 import { renderStatusPage } from './status-page';
 import { fetchPhoto, probeGoogle } from '../server/places-google';
+import { probeDatabase } from '../server/probe-db';
 import type { Sql } from '../server/sql';
 
 export interface Env {
@@ -33,6 +34,29 @@ export interface Env {
  */
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    try {
+      return await route(request, env, ctx);
+    } catch (error) {
+      // 여기까지 올라온 예외는 우리가 예상하지 못한 것이다. 그대로 터뜨리면
+      // 클라이언트는 본문 없는 500 을 받고 "불러오지 못했어요" 밖에 못 보여준다.
+      console.error('[worker] 처리하지 못한 오류', error);
+      const url = new URL(request.url);
+      if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+        return json(
+          { error: 'unknown', message: '서버에서 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' },
+          500,
+        );
+      }
+      return new Response('Internal Error', { status: 500 });
+    }
+  },
+} satisfies ExportedHandler<Env>;
+
+async function route(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+): Promise<Response> {
     const url = new URL(request.url);
 
     /**
@@ -84,7 +108,7 @@ export default {
 
       if (url.searchParams.get('probe') === '1') {
         // 설정된 제공자만 시험한다 — 없는 키로 외부 호출을 낭비하지 않는다
-        const [kakao, google] = await Promise.all([
+        const [kakao, google, database] = await Promise.all([
           env.KAKAO_REST_API_KEY
             ? probeKakao(env.KAKAO_REST_API_KEY)
             : Promise.resolve({
@@ -94,8 +118,15 @@ export default {
                   'KAKAO_REST_API_KEY 가 Worker 에 없습니다. 빌드 변수에 넣고 다시 배포하세요.',
               }),
           env.GOOGLE_PLACES_API_KEY ? probeGoogle(env.GOOGLE_PLACES_API_KEY) : null,
+          env.DATABASE_URL
+            ? probeDatabase(() => neon(env.DATABASE_URL) as unknown as Sql, env.DATABASE_URL)
+            : null,
         ]);
-        body.probe = google ? { kakao, google } : { kakao };
+        body.probe = {
+          kakao,
+          ...(google ? { google } : {}),
+          ...(database ? { database } : {}),
+        };
       }
 
       // 진단 결과는 캐시되면 안 된다 — 설정을 고친 직후에 다시 물어보게 된다
@@ -130,8 +161,10 @@ export default {
         request,
         { kakao: env.KAKAO_REST_API_KEY, google: env.GOOGLE_PLACES_API_KEY },
         {
-          // 사용량 카운터는 방 DB 를 그대로 쓴다
-          sql: env.DATABASE_URL ? (neon(env.DATABASE_URL) as unknown as Sql) : undefined,
+          // 사용량 카운터는 방 DB 를 그대로 쓴다.
+          // DB 가 고장 나도 식당 검색은 살아야 하므로, 드라이버 생성 실패는
+          // "카운터를 쓸 수 없는 상태"로 넘긴다 (무료 제공자로 기운다).
+          sql: usageCounter(env.DATABASE_URL),
           googleMonthlyLimit: Number(env.GOOGLE_MONTHLY_LIMIT) || 900,
         },
       );
@@ -164,8 +197,25 @@ export default {
     // 그래서 루트 문서를 받아 원래 주소에 200 으로 실어 보낸다.
     const index = await env.ASSETS.fetch(new Request(new URL('/', url.origin)));
     return new Response(index.body, { status: 200, headers: index.headers });
-  },
-} satisfies ExportedHandler<Env>;
+}
+
+/**
+ * 사용량 카운터용 DB 핸들.
+ *
+ * 연결 문자열이 없으면 undefined(카운터 미사용), 형식이 틀렸으면 호출 시 던지는
+ * 스텁을 준다. 스텁을 받은 쪽은 "한도를 확인할 수 없다"로 보고 무료 제공자를 고른다.
+ */
+function usageCounter(connectionString: string | undefined): Sql | undefined {
+  if (!connectionString) return undefined;
+  try {
+    return neon(connectionString) as unknown as Sql;
+  } catch (error) {
+    console.error('[worker] DATABASE_URL 형식이 올바르지 않습니다', error);
+    return (() => {
+      throw new Error('DATABASE_URL 형식 오류');
+    }) as unknown as Sql;
+  }
+}
 
 function json(
   body: unknown,
