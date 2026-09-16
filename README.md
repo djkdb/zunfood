@@ -95,23 +95,36 @@ Cloudflare 대시보드 → **Workers & Pages** → **Create** → **Workers** �
 | 항목 | 값 |
 | --- | --- |
 | Build command | `npm run build` |
-| Deploy command | `npx wrangler deploy` |
+| Deploy command | `npm run deploy:cf` |
 | Root directory | `/` |
 
-환경변수는 **두 군데에 나눠서** 넣어야 합니다. 여기서 자주 틀립니다.
+> Deploy command 가 `npx wrangler deploy` 가 아니라 `npm run deploy:cf` 인 것이
+> 중요합니다. 이 스크립트는 **배포한 뒤 빌드 환경변수를 런타임 Secret 으로 다시
+> 심습니다.** 덕분에 아래 ①번 칸(Build)에만 값을 넣어도 동작하고, 어떤 이유로든
+> Secret 이 사라져도 다음 배포에서 저절로 복구됩니다.
+> ([scripts/deploy-cloudflare.mjs](scripts/deploy-cloudflare.mjs))
+
+환경변수를 넣을 곳이 **두 군데**라 여기서 자주 틀립니다.
 
 **① 빌드 변수** (Settings → Build → *Variables and Secrets*)
-빌드할 때 번들에 박히는 값입니다.
+빌드가 볼 수 있는 값입니다. **여기만 채워도 됩니다** — `deploy:cf` 가 배포할 때
+런타임 Secret 으로 옮겨 심습니다.
 
 ```
-NODE_VERSION = 22
+NODE_VERSION        = 22
+DATABASE_URL        = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
+KAKAO_REST_API_KEY  = (카카오 REST API 키 32자리)
 ```
+
+`DATABASE_URL` / `KAKAO_REST_API_KEY` 는 `VITE_` 접두사가 없으므로 브라우저 번들에
+들어가지 않습니다. 빌드 중 메모리에만 있다가 Secret 으로 넘어갑니다.
 
 `VITE_API_BASE` 와 `VITE_PLACES_PROVIDER` 는 **설정하지 않아도 됩니다.**
 배포 빌드는 자동으로 `/api` + 카카오를 씁니다.
 
 **② 런타임 시크릿** (Worker 의 Settings → *Variables and Secrets*)
-배포된 Worker 가 실행 중에 읽는 값입니다.
+배포된 Worker 가 실행 중에 읽는 값입니다. ①에 넣었다면 여기는 건너뛰어도 됩니다
+(`deploy:cf` 가 채워줍니다). 직접 넣고 싶다면:
 
 ```
 DATABASE_URL        = postgresql://...@ep-xxxx.neon.tech/mealgame?sslmode=require
