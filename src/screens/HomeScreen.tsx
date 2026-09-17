@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { APP } from '@/config/app';
 import { Screen } from '@/components/ui/Screen';
+import { EntryBanner } from '@/components/EntryBanner';
 import { hasRemoteBackend } from '@/config/env';
 import { GAMES } from '@/games/registry';
 
@@ -40,7 +41,10 @@ export function HomeScreen() {
           게임으로 정하세요.
         </motion.p>
 
-        <div className="mt-9 space-y-3">
+        {/* 어디서 들어왔는지에 따라 지금 필요한 한 가지만 알려준다 */}
+        <EntryBanner />
+
+        <div className="mt-7 space-y-3">
           <ModeCard
             emphasis
             delay={0.12}

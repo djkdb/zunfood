@@ -1,0 +1,16 @@
+{
+  "name": "MEALGAME — 오늘 뭐 먹지?",
+  "short_name": "MEALGAME",
+  "description": "친구들이랑 게임으로 오늘 먹을 곳을 정하세요.",
+  "lang": "ko",
+  "start_url": "/?from=home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F6F7F9",
+  "theme_color": "#0A1024",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

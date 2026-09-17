@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { MapPicker } from '@/components/MapPicker';
 import { isMapAvailable } from '@/lib/kakaoMap';
+import { detectEntry, escapeHint, SOURCE_LABEL } from '@/lib/entry';
 import { Sheet } from '@/components/ui/Sheet';
 import { TextField } from '@/components/ui/TextField';
 import { getPlaceRepository, type PlaceSearchResult } from '@/data/places';
@@ -34,6 +35,7 @@ export function LocationSheet({
   const [results, setResults] = useState<PlaceSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const geo = useGeolocation();
+  const entry = useMemo(() => detectEntry(), []);
   const repository = useMemo(() => getPlaceRepository(), []);
 
   useEffect(() => {
@@ -126,7 +128,20 @@ export function LocationSheet({
       {geo.error && (
         <div className="mt-3 rounded-lg bg-danger/8 p-3.5">
           <p className="text-sm font-semibold text-danger">{geo.error}</p>
-          <p className="mt-1 text-sm text-muted">아래에서 장소를 검색해 주세요.</p>
+          {/*
+            앱 안 브라우저(인스타·카톡)에서는 권한을 눌러도 위치가 조용히 막히는 일이 잦다.
+            여기서 "설정을 확인하세요"라고만 하면 확인할 설정이 없어 막다른 길이 된다.
+            원인과 빠져나가는 방법을 같이 말해준다.
+          */}
+          {entry.inApp ? (
+            <p className="mt-1 text-sm leading-relaxed text-ink-700">
+              {SOURCE_LABEL[entry.source] || '이 앱'} 안에서는 위치를 못 가져올 때가 많아요.
+              <br />
+              {escapeHint(entry)}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-muted">아래에서 장소를 검색해 주세요.</p>
+          )}
         </div>
       )}
 
